@@ -227,14 +227,24 @@ public class Generator {
             schemaCopyList.add(deepCopy(schemaObject));
         }
 
-        // Generate the ballerina code based on the first element
-        Object schemaObject = schemaCopyList.getFirst();
-        String generatedTypeName = convert(schemaObject, DEFAULT_SCHEMA_NAME);
+        // Generate the ballerina code for each json schema file object.
+        for (int index = 0; index < schemaCopyList.size(); index++) {
+            Object schemaObject = schemaCopyList.get(index);
+            String schemaName = this.resolveSchemaName(schemaObject, index);
+            String generatedTypeName = convert(schemaObject, schemaName);
 
-        if (!generatedTypeName.equals(DEFAULT_SCHEMA_NAME)) {
-            String schemaDefinition = String.format(TYPE_FORMAT, DEFAULT_SCHEMA_NAME, generatedTypeName);
-            ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
-            this.nodes.put(DEFAULT_SCHEMA_NAME, schemaNode);
+            if (index == 0) {
+                if (!generatedTypeName.equals(schemaName)) {
+                    String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
+                    ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
+                    this.nodes.put(schemaName, schemaNode);
+                }
+            // Primitive Schema files are not added to this.nodes in convert. So, add here.
+            } else if (isPrimitiveBalType(generatedTypeName)) {
+                String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
+                ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
+                this.nodes.put(schemaName, schemaNode);
+            }
         }
 
         ModulePartNode modulePartNode = generateModulePartNode();
@@ -1380,6 +1390,21 @@ public class Generator {
         if (!this.imports.contains(importDeclaration)) {
             this.imports.add(importDeclaration);
         }
+    }
+
+    // TODO: Have proper schema naming strategy
+    String resolveSchemaName(Object schemaObject, int objectIndex) {
+        if (objectIndex == 0) {
+            return DEFAULT_SCHEMA_NAME;
+        }
+        if (schemaObject instanceof Schema schema) {
+            String title = schema.getTitle();
+            if (title != null) {
+                title = title.substring(0,1).toUpperCase() + title.substring(1);
+                return DEFAULT_SCHEMA_NAME + title;
+            }
+        }
+        return DEFAULT_SCHEMA_NAME + "_" + objectIndex;
     }
 
     private boolean hasNestedPropertyKeywords(Object schemaObject, boolean baseSchema) {
