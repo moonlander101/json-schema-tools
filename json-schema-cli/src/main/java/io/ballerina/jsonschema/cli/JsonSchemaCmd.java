@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
+import java.util.stream.Stream;
 
 /**
  * Main class to implement "json-schema" command for Ballerina.
@@ -136,13 +137,11 @@ public class JsonSchemaCmd implements BLauncherCmd {
     private void handleMultipleFiles(Path outputDirPath, String inputPath) throws Exception {
         Path dir = Path.of(inputPath);
         ArrayList<Path> filePaths = new ArrayList<>();
-        // Only consider top level json files, ignore subdirectories, TODO: What to do with subdirectories
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.json")) {
-            for (Path entry : stream) {
-                if (Files.isRegularFile(entry)) {
-                    filePaths.add(entry);
-                }
-            }
+        // find all files with .json extension in subdirectories as well
+        try (Stream<Path> stream = Files.walk(dir)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".json"))
+                    .forEach(filePaths::add);
         } catch (IOException e) {
             outStream.println("Error: " + e.getLocalizedMessage());
             exitOnError();
