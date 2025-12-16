@@ -195,7 +195,11 @@ public class Generator {
         throw new Exception("Schema type is invalid");
     }
 
-    public Response convertBaseSchema(ArrayList<Object> schemaObjectList) throws Exception {
+    public Response convertBaseSchema(ArrayList<Object> schemaObjectList) throws  Exception {
+        return convertBaseSchema(schemaObjectList, new LinkedHashMap<>());
+    }
+
+    public Response convertBaseSchema(ArrayList<Object> schemaObjectList, LinkedHashMap<Object, String> schemaToFileMap) throws Exception {
         // If there are multiple schemas (Starting with a non-boolean schema), validate the presence of id's in all
         // References are stored as deepCopies to avoid modifications in the later part of the code
         ArrayList<Object> schemaCopyList = new ArrayList<>();
@@ -227,12 +231,18 @@ public class Generator {
             schemaCopyList.add(deepCopy(schemaObject));
         }
 
+        ArrayList<Integer> array = new ArrayList<>();
+        array.add(0);
+
         // Generate the ballerina code for each json schema file object.
         for (int index = 0; index < schemaCopyList.size(); index++) {
             Object schemaObject = schemaCopyList.get(index);
             String schemaName = this.resolveSchemaName(schemaObject, index);
+            int last = this.nodes.size();
             String generatedTypeName = convert(schemaObject, schemaName);
-
+            if (this.nodes.size() > last) {
+                array.add(last + 1);
+            }
             if (index == 0) {
                 if (!generatedTypeName.equals(schemaName)) {
                     String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
