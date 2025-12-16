@@ -42,7 +42,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -240,11 +239,9 @@ public class Generator {
                     ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
                     this.nodes.put(schemaName, schemaNode);
                 }
-                // Schema Files that are just refs or primitive BalTypes or regular enums without constraints
-                // are added here as they are not added to this.nodes in convert().
-            } else if (isPrimitiveBalType(generatedTypeName)
-                    || ((Schema) schemaObject).getRefKeyword() != null
-                    || generatedTypeName.contains(PIPE)) {
+            // if the generated type is not added to nodes (from being referenced in another schema), add it.
+            } else if (!this.nodes.containsKey(generatedTypeName)
+                        || generatedTypeName.startsWith(GeneratorUtils.CONST_MAPPING_PREFIX)) {
                 String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
                 ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
                 this.nodes.put(schemaName, schemaNode);
@@ -1401,14 +1398,14 @@ public class Generator {
         if (objectIndex == 0) {
             return DEFAULT_SCHEMA_NAME;
         }
-        if (schemaObject instanceof Schema schema) {
-            String title = schema.getTitle();
-            if (title != null) {
-                title = title.substring(0, 1).toUpperCase(Locale.ENGLISH) + title.substring(1);
-                return DEFAULT_SCHEMA_NAME + title;
-            }
-        }
-        return DEFAULT_SCHEMA_NAME + "_" + objectIndex;
+//        if (schemaObject instanceof Schema schema) {
+//            String title = schema.getTitle();
+//            if (title != null) {
+//                title = title.substring(0, 1).toUpperCase(Locale.ENGLISH) + title.substring(1);
+//                return DEFAULT_SCHEMA_NAME + title;
+//            }
+//        }
+        return DEFAULT_SCHEMA_NAME + objectIndex;
     }
 
     private boolean hasNestedPropertyKeywords(Object schemaObject, boolean baseSchema) {
