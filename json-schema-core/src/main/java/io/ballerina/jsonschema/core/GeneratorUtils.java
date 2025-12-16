@@ -156,6 +156,7 @@ public class GeneratorUtils {
 
     public static final String DUMMY_SCHEME = "placeholder:/";
     public static final String COMMENT_HEADER = "# ";
+    public static final String CONST_MAPPING_PREFIX = "MAPPING_";
 
     static final ArrayList<String> STRING_FORMATS = new ArrayList<>(
             Arrays.asList("date", "time", "date-time", "duration", "regex", "email", "idn-email", "hostname",
@@ -397,10 +398,10 @@ public class GeneratorUtils {
     }
 
     static String resolveConstMapping(Generator generator) {
-        String name = "MAPPING_";
         String resolvedName;
         do {
-            resolvedName = name + generator.getNextConstIndex();
+            // Mapping_<index>
+            resolvedName = CONST_MAPPING_PREFIX + generator.getNextConstIndex();
         } while (generator.nodes.containsKey(resolvedName));
         return resolvedName;
     }
