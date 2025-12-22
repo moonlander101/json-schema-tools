@@ -155,7 +155,8 @@ public class JsonSchemaCmd implements BLauncherCmd {
                 String jsonFileContent = Files.readString(jsonFile);
                 Object schema = SchemaUtils.parseJsonSchema(jsonFileContent);
                 schemas.add(schema);
-                schemaToFileMap.put(schema, jsonFile.getFileName().toString());
+                String relativePathName = dir.relativize(jsonFile).toString();
+                schemaToFileMap.put(schema, relativePathName);
                 fileCount += 1;
             } catch (Exception e) {
                 System.err.println(e.toString());

@@ -199,7 +199,8 @@ public class Generator {
         return convertBaseSchema(schemaObjectList, new LinkedHashMap<>());
     }
 
-    public Response convertBaseSchema(ArrayList<Object> schemaObjectList, LinkedHashMap<Object, String> schemaToFileMap) throws Exception {
+    public Response convertBaseSchema(ArrayList<Object> schemaObjectList,
+                                      LinkedHashMap<Object, String> schemaToFileMap) throws Exception {
         // If there are multiple schemas (Starting with a non-boolean schema), validate the presence of id's in all
         // References are stored as deepCopies to avoid modifications in the later part of the code
         ArrayList<Object> schemaCopyList = new ArrayList<>();
@@ -231,18 +232,11 @@ public class Generator {
             schemaCopyList.add(deepCopy(schemaObject));
         }
 
-        ArrayList<Integer> array = new ArrayList<>();
-        array.add(0);
-
         // Generate the ballerina code for each json schema file object.
         for (int index = 0; index < schemaCopyList.size(); index++) {
             Object schemaObject = schemaCopyList.get(index);
-            String schemaName = this.resolveSchemaName(schemaObject, index);
-            int last = this.nodes.size();
+            String schemaName = this.resolveSchemaName(schemaObject, schemaToFileMap);
             String generatedTypeName = convert(schemaObject, schemaName);
-            if (this.nodes.size() > last) {
-                array.add(last + 1);
-            }
             if (index == 0) {
                 if (!generatedTypeName.equals(schemaName)) {
                     String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
@@ -1403,19 +1397,27 @@ public class Generator {
         }
     }
 
-    // TODO: Have proper schema naming strategy
-    String resolveSchemaName(Object schemaObject, int objectIndex) {
-        if (objectIndex == 0) {
-            return DEFAULT_SCHEMA_NAME;
+    // Multiple Schemas named based on the file they were defined in.
+    String resolveSchemaName(Object schemaObject, LinkedHashMap<Object, String> schemaToFileMap) {
+        if (!schemaToFileMap.isEmpty() && schemaToFileMap.containsKey(schemaObject)) {
+            String fileName = schemaToFileMap.get(schemaObject);
+            String base = fileName.substring(0, fileName.length() - 5);
+            base = base.replaceAll("[^A-Za-z0-9]+", "-");
+            String[] parts = base.split("[-_]");
+            StringBuilder fileNamePascalCase = new StringBuilder();
+
+            for (String part : parts) {
+                if (!part.isEmpty()) {
+                    fileNamePascalCase.append(
+                            Character.toUpperCase(part.charAt(0))
+                    ).append(
+                            part.substring(1)
+                    );
+                }
+            }
+            return DEFAULT_SCHEMA_NAME + fileNamePascalCase.toString();
         }
-//        if (schemaObject instanceof Schema schema) {
-//            String title = schema.getTitle();
-//            if (title != null) {
-//                title = title.substring(0, 1).toUpperCase(Locale.ENGLISH) + title.substring(1);
-//                return DEFAULT_SCHEMA_NAME + title;
-//            }
-//        }
-        return DEFAULT_SCHEMA_NAME + objectIndex;
+        return DEFAULT_SCHEMA_NAME;
     }
 
     private boolean hasNestedPropertyKeywords(Object schemaObject, boolean baseSchema) {
