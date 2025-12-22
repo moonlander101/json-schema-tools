@@ -31,10 +31,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -137,6 +134,7 @@ public class JsonSchemaCmd implements BLauncherCmd {
     private void handleMultipleFiles(Path outputDirPath, String inputPath) throws Exception {
         Path dir = Path.of(inputPath);
         ArrayList<Path> filePaths = new ArrayList<>();
+        LinkedHashMap<Object, String> schemaToFileMap = new LinkedHashMap<>();
         // find all files with .json extension in subdirectories as well
         try (Stream<Path> stream = Files.walk(dir)) {
             stream.filter(Files::isRegularFile)
@@ -151,24 +149,26 @@ public class JsonSchemaCmd implements BLauncherCmd {
             Files.createDirectories(outputDirPath);
         }
         ArrayList<Object> schemas = new ArrayList<>();
-        int sucessCount = 0;
+        int fileCount = 0;
         for (Path jsonFile : filePaths) {
             try {
                 String jsonFileContent = Files.readString(jsonFile);
                 Object schema = SchemaUtils.parseJsonSchema(jsonFileContent);
                 schemas.add(schema);
-                sucessCount += 1;
+                String relativePathName = dir.relativize(jsonFile).toString();
+                schemaToFileMap.put(schema, relativePathName);
+                fileCount += 1;
             } catch (Exception e) {
                 System.err.println(e.toString());
             }
         }
 
-        if (sucessCount == 0) {
+        if (fileCount == 0) {
             throw new Exception("None of the files within the directory are valid JSON Schema.");
         }
 
         Generator generator = new Generator();
-        Response result = generator.convertBaseSchema(schemas);
+        Response result = generator.convertBaseSchema(schemas, schemaToFileMap);
 
         if (!result.getDiagnostics().isEmpty()) {
             result.getDiagnostics().forEach(jsonSchemaDiagnostic ->
