@@ -114,6 +114,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.PATTERN_FORMAT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PATTERN_PROPERTIES;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PATTERN_RECORD;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PIPE;
+import static io.ballerina.jsonschema.core.GeneratorUtils.PREFIX_ITEMS;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PROPERTY_NAMES;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PROPERTY_NAMES_SUFFIX;
 import static io.ballerina.jsonschema.core.GeneratorUtils.PUBLIC;
@@ -169,11 +170,6 @@ public class Generator {
     static final String DEFAULT_SCHEMA_NAME = "Schema";
     static final String EOF_TOKEN = "";
     static final String INVALID_IMPORTS_ERROR = "Invalid imports have been found.";
-
-    // If a union contains more than this number of tuple types, it will be represented using annotations
-    static final int MAX_UNION_TUPLE_TYPES = 5;
-    // If a tuple type has more than this number of elements, it will be represented using annotations
-    static final int MAX_TUPLE_MEMBER_COUNT = 10;
 
     Map<String, ModuleMemberDeclarationNode> nodes = new LinkedHashMap<>();
     final ArrayList<String> imports = new ArrayList<>();
@@ -804,18 +800,18 @@ public class Generator {
         String type = resolveNameConflicts(convertToPascalCase(name), this);
         allocateTypeToSchema(type, schema);
 
-        ArrayList<String> arrayItems = new ArrayList<>();
-
+        Set<String> convertedPrefixItems = new HashSet<>();
         if (!prefixItems.isEmpty()) {
             for (int i = 0; i < prefixItems.size(); i++) {
                 Object item = prefixItems.get(i);
-                arrayItems.add(this.convert(item, type + ITEM_SUFFIX + i));
+                String convertedItem = this.convert(item, type + ITEM_SUFFIX + i);
+                convertedPrefixItems.add(
+                        resolveTypeNameForTypedesc(type + ITEM_SUFFIX + i, convertedItem, this));
             }
         }
 
         long startPosition = minItems == null ? 0L : minItems;
         long endPosition = maxItems == null ? Long.MAX_VALUE : maxItems;
-        long annotationLimit = startPosition + MAX_UNION_TUPLE_TYPES;
 
         String restItem = JSON;
         if (items != null) {
@@ -825,60 +821,36 @@ public class Generator {
             }
         }
 
-        if ((endPosition < startPosition) || (restItem.equals(NEVER) && arrayItems.size() < startPosition)) {
+        if ((endPosition < startPosition) || (restItem.equals(NEVER) && convertedPrefixItems.size() < startPosition)
+                || convertedPrefixItems.size() > endPosition) {
+            for (String item : convertedPrefixItems) {
+                this.nodes.remove(item);
+            }
             this.nodes.remove(type);
             return NEVER;
         }
 
-        // Determine the rest item type
-        if (!restItem.equals(NEVER)) {
-            if (arrayItems.size() < startPosition) {
-                if (startPosition < MAX_TUPLE_MEMBER_COUNT) {
-                    for (int i = arrayItems.size(); i < startPosition; i++) {
-                        arrayItems.add(restItem);
-                    }
-                    // Avoids further annotations on minItems
-                    minItems = null;
-                } else {
-                    // Accommodates the startPosition including the rest item type
-                    startPosition = arrayItems.size() + 1;
-                }
+        String arrayContent;
+        Set<String> arrayItems = new HashSet<>(convertedPrefixItems);
+        if (arrayItems.isEmpty()) {
+            if (restItem.equals(NEVER))
+                arrayContent = EMPTY_ARRAY;
+            else {
+                arrayContent = OPEN_SQUARE_BRACKET + restItem + REST + CLOSE_SQUARE_BRACKET;
             }
-            if (endPosition < annotationLimit) {
-                for (int i = arrayItems.size(); i < endPosition; i++) {
-                    arrayItems.add(restItem);
-                }
-                // Avoids further annotations on maxItems
-                maxItems = null;
-            } else {
-                arrayItems.add(restItem + REST);
+        } else {
+            if (!restItem.equals(NEVER)) {
+                arrayItems.add(restItem);
             }
+            arrayContent = OPEN_SQUARE_BRACKET + OPEN_BRACKET + String.join(PIPE, arrayItems) + CLOSE_BRACKET + REST + CLOSE_SQUARE_BRACKET;
         }
 
-        ArrayList<String> tupleList = new ArrayList<>();
-
-        long upperBound = Math.min(Math.min(annotationLimit, endPosition), arrayItems.size());
-        for (int i = (int) startPosition; i <= upperBound; i++) {
-            tupleList.add(OPEN_SQUARE_BRACKET + String.join(COMMA, arrayItems.subList(0, i)) + CLOSE_SQUARE_BRACKET);
-        }
-
-        // Replace [] with json[0] if present.
-        if (tupleList.getFirst().equals(OPEN_SQUARE_BRACKET + CLOSE_SQUARE_BRACKET)) {
-            tupleList.set(0, EMPTY_ARRAY);
-        }
-
-        // If the last item is a rest item, the previous array element is redundant.
-        if (tupleList.getLast().contains(REST) && tupleList.size() >= 2) {
-            tupleList.remove(tupleList.size() - 2);
-        }
-
-        if ((minItems == null) && (maxItems == null) && (uniqueItems == null) && (contains == null)) {
-            this.nodes.remove(type);
-            return String.join(PIPE, tupleList);
-        }
-
-        this.addJsonDataImport();
         List<String> annotationParts = new ArrayList<>();
+
+        if (!convertedPrefixItems.isEmpty()) {
+            annotationParts.add(PREFIX_ITEMS + COLON + WHITE_SPACE + OPEN_SQUARE_BRACKET +
+                    String.join(COMMA, convertedPrefixItems) + CLOSE_SQUARE_BRACKET);
+        }
 
         addIfNotNull(annotationParts, MIN_ITEMS, minItems);
         addIfNotNull(annotationParts, MAX_ITEMS, maxItems);
@@ -890,7 +862,6 @@ public class Generator {
             String newType = this.convert(contains, containsRecordName);
 
             if (newType.contains(PIPE)) {
-                // Ballerina typedesc doesn't allow union types. Hence, we need to create a new type definition
                 String typeDef = String.format(TYPE_FORMAT, containsRecordName, newType);
                 ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(typeDef);
                 this.nodes.put(containsRecordName, moduleNode);
@@ -899,7 +870,7 @@ public class Generator {
 
             List<String> containsAnnotationParts = new ArrayList<>();
 
-            containsAnnotationParts.add(CONTAINS + COLON + WHITE_SPACE + newType);
+            containsAnnotationParts.add(VALUE + COLON + WHITE_SPACE + newType);
             if (minContains == null) {
                 containsAnnotationParts.add(MIN_CONTAINS + COLON + WHITE_SPACE +
                         ZERO);
@@ -922,9 +893,15 @@ public class Generator {
                     resolveTypeNameForTypedesc(customTypeName, typeName, this));
         }
 
+        if (annotationParts.isEmpty()) {
+            this.nodes.remove(type);
+            return arrayContent;
+        }
+
+        this.addJsonDataImport();
+
         String formattedAnnotation = getFormattedAnnotation(annotationParts,
-                ARRAY_CONSTRAINTS, type,
-                String.join(PIPE, tupleList));
+                ARRAY_CONSTRAINTS, type, arrayContent);
 
         ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(formattedAnnotation);
         this.nodes.put(type, moduleNode);
