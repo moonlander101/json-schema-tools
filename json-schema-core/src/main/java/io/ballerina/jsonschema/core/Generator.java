@@ -800,7 +800,7 @@ public class Generator {
         String type = resolveNameConflicts(convertToPascalCase(name), this);
         allocateTypeToSchema(type, schema);
 
-        Set<String> convertedPrefixItems = new HashSet<>();
+        ArrayList<String> convertedPrefixItems = new ArrayList<>();
         if (!prefixItems.isEmpty()) {
             for (int i = 0; i < prefixItems.size(); i++) {
                 Object item = prefixItems.get(i);
@@ -831,18 +831,32 @@ public class Generator {
         }
 
         String arrayContent;
-        Set<String> arrayItems = new HashSet<>(convertedPrefixItems);
-        if (arrayItems.isEmpty()) {
+        if (convertedPrefixItems.isEmpty()) {
             if (restItem.equals(NEVER))
                 arrayContent = EMPTY_ARRAY;
             else {
                 arrayContent = OPEN_SQUARE_BRACKET + restItem + REST + CLOSE_SQUARE_BRACKET;
             }
         } else {
-            if (!restItem.equals(NEVER)) {
-                arrayItems.add(restItem);
+            ArrayList<String> arrayItems = new ArrayList<>();
+            if (startPosition >= convertedPrefixItems.size()) {
+                arrayItems.addAll(convertedPrefixItems);
+                if (!restItem.equals(NEVER)) {
+                    arrayItems.add(restItem + REST);
+                }
+            } else {
+                for (int i = 0; i < startPosition; i++) {
+                    arrayItems.add(convertedPrefixItems.get(i));
+                }
+                List<String> restMembers = new ArrayList<>(
+                        convertedPrefixItems.subList((int) startPosition, convertedPrefixItems.size()));
+                if (!restItem.equals(NEVER)) {
+                    restMembers.add(restItem);
+                }
+                String restItemType = OPEN_BRACKET + String.join(PIPE, restMembers) + CLOSE_BRACKET;
+                arrayItems.add(restItemType + REST);
             }
-            arrayContent = OPEN_SQUARE_BRACKET + OPEN_BRACKET + String.join(PIPE, arrayItems) + CLOSE_BRACKET + REST + CLOSE_SQUARE_BRACKET;
+            arrayContent = OPEN_SQUARE_BRACKET + String.join(COMMA, arrayItems) + CLOSE_SQUARE_BRACKET;
         }
 
         List<String> annotationParts = new ArrayList<>();
