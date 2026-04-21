@@ -836,7 +836,12 @@ public class Generator {
             if (restItem.equals(NEVER)) {
                 arrayContent = EMPTY_ARRAY;
             } else {
-                arrayContent = OPEN_SQUARE_BRACKET + restItem + REST + CLOSE_SQUARE_BRACKET;
+                ArrayList<String> arrayItems = new ArrayList<>();
+                for (int i = 0; i < startPosition; i++) {
+                    arrayItems.add(restItem);
+                }
+                arrayItems.add(restItem + REST);
+                arrayContent = OPEN_SQUARE_BRACKET + String.join(COMMA, arrayItems) + CLOSE_SQUARE_BRACKET;
             }
         } else {
             ArrayList<String> arrayItems = new ArrayList<>();
