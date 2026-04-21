@@ -2,7 +2,7 @@ import ballerina/data.jsondata;
 
 @jsondata:ArrayConstraints {
     uniqueItems: true,
-    contains: {contains: SchemaContains, minContains: 0}
+    contains: {value: SchemaContains, minContains: 0}
 }
 public type Schema [string...];
 

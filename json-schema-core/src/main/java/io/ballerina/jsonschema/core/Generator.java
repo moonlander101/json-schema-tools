@@ -170,6 +170,7 @@ public class Generator {
     static final String DEFAULT_SCHEMA_NAME = "Schema";
     static final String EOF_TOKEN = "";
     static final String INVALID_IMPORTS_ERROR = "Invalid imports have been found.";
+    static final int MAX_ARRAY_ITEMS = 100;
 
     Map<String, ModuleMemberDeclarationNode> nodes = new LinkedHashMap<>();
     final ArrayList<String> imports = new ArrayList<>();
@@ -810,7 +811,7 @@ public class Generator {
             }
         }
 
-        long startPosition = minItems == null ? 0L : minItems;
+        long startPosition = minItems == null ? 0L : Math.min(minItems, MAX_ARRAY_ITEMS);
         long endPosition = maxItems == null ? Long.MAX_VALUE : maxItems;
 
         String restItem = JSON;
@@ -832,9 +833,9 @@ public class Generator {
 
         String arrayContent;
         if (convertedPrefixItems.isEmpty()) {
-            if (restItem.equals(NEVER))
+            if (restItem.equals(NEVER)) {
                 arrayContent = EMPTY_ARRAY;
-            else {
+            } else {
                 arrayContent = OPEN_SQUARE_BRACKET + restItem + REST + CLOSE_SQUARE_BRACKET;
             }
         } else {
@@ -842,6 +843,9 @@ public class Generator {
             if (startPosition >= convertedPrefixItems.size()) {
                 arrayItems.addAll(convertedPrefixItems);
                 if (!restItem.equals(NEVER)) {
+                    for (int i = convertedPrefixItems.size(); i < startPosition; i++) {
+                        arrayItems.add(restItem);
+                    }
                     arrayItems.add(restItem + REST);
                 }
             } else {
@@ -851,6 +855,9 @@ public class Generator {
                 List<String> restMembers = new ArrayList<>(
                         convertedPrefixItems.subList((int) startPosition, convertedPrefixItems.size()));
                 if (!restItem.equals(NEVER)) {
+                    if (restItem.contains(PIPE)) {
+                        restItem = restItem.substring(1, restItem.length() - 1);
+                    }
                     restMembers.add(restItem);
                 }
                 String restItemType = OPEN_BRACKET + String.join(PIPE, restMembers) + CLOSE_BRACKET;

@@ -4,6 +4,7 @@ import ballerina/data.jsondata;
     title: "User Roles List"
 }
 @jsondata:ArrayConstraints {
+    prefixItems: [SchemaItem0, SchemaItem1],
     minItems: 2
 }
 public type Schema [SchemaItem0, SchemaItem1, SchemaRestItem...];
