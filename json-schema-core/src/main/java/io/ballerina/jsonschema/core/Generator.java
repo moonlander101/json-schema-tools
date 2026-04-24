@@ -787,6 +787,7 @@ public class Generator {
         return type;
     }
 
+    // TODO: Is there a proper way to represent the order of prefix types.
     private String createArray(String name, Schema schema) throws Exception {
         List<Object> prefixItems = schema.getPrefixItems();
         Object items = schema.getItems();
@@ -820,6 +821,9 @@ public class Generator {
             if (restItem.contains(PIPE)) {
                 restItem = OPEN_BRACKET + restItem + CLOSE_BRACKET;
             }
+        } else if (unevaluatedItems != null) {
+            String customTypeName = type + UNEVALUATED_ITEMS_SUFFIX;
+            restItem = this.convert(unevaluatedItems, customTypeName);
         }
 
         if ((endPosition < startPosition) || (restItem.equals(NEVER) && convertedPrefixItems.size() < startPosition)
@@ -859,12 +863,10 @@ public class Generator {
                 }
                 List<String> restMembers = new ArrayList<>(
                         convertedPrefixItems.subList((int) startPosition, convertedPrefixItems.size()));
-                if (!restItem.equals(NEVER)) {
-                    if (restItem.contains(PIPE)) {
-                        restItem = restItem.substring(1, restItem.length() - 1);
-                    }
-                    restMembers.add(restItem);
+                if (restItem.contains(PIPE)) {
+                    restItem = restItem.substring(1, restItem.length() - 1);
                 }
+                restMembers.add(restItem);
                 String restItemType = OPEN_BRACKET + String.join(PIPE, restMembers) + CLOSE_BRACKET;
                 arrayItems.add(restItemType + REST);
             }
@@ -912,7 +914,8 @@ public class Generator {
                     CLOSE_BRACES);
         }
 
-        if (unevaluatedItems != null) {
+        // unevalItems will never trigger if items is there
+        if (unevaluatedItems != null && items == null) {
             String customTypeName = type + UNEVALUATED_ITEMS_SUFFIX;
             String typeName = this.convert(unevaluatedItems, customTypeName);
             annotationParts.add(UNEVALUATED_ITEMS + COLON + WHITE_SPACE +
