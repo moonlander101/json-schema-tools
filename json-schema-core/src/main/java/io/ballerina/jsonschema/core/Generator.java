@@ -133,6 +133,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.TITLE;
 import static io.ballerina.jsonschema.core.GeneratorUtils.TYPE;
 import static io.ballerina.jsonschema.core.GeneratorUtils.TYPE_FORMAT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.UNEVALUATED_ITEMS;
+import static io.ballerina.jsonschema.core.GeneratorUtils.UNEVALUATED_ITEMS_ANNOT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.UNEVALUATED_ITEMS_SUFFIX;
 import static io.ballerina.jsonschema.core.GeneratorUtils.UNEVALUATED_PROPS;
 import static io.ballerina.jsonschema.core.GeneratorUtils.UNIQUE_ITEMS;
@@ -298,6 +299,10 @@ public class Generator {
             uneval = true;
         }
 
+        if (schema.getUnevaluatedItems() != null && hasCombiningKeywords(schema)) {
+            uneval = true;
+        }
+
         populateCombiningSchemas(schema);
 
         List<Object> allOf = schema.getAllOf();
@@ -442,9 +447,19 @@ public class Generator {
     private String generateCombinedCode(String name, Schema schema, List<Object> combiningList, String combType,
                                         Consumer<Schema> schemaMutator, boolean uneval) throws Exception {
         schemaMutator.accept(schema);
+
+        Object savedUnevaluatedItems = null;
+        Object savedUnevaluatedProperties = null;
+        if (uneval) {
+            savedUnevaluatedItems = schema.getUnevaluatedItems();
+            savedUnevaluatedProperties = schema.getUnevaluatedProperties();
+            schema.setUnevaluatedItems(null);
+            schema.setUnevaluatedProperties(null);
+        }
+
         name = resolveNameConflicts(name, this);
         String mainTypeName = name + "MainType";
-        String mainType = resolveTypeNameForTypedesc(mainTypeName, convert(schema, mainTypeName, uneval), this);
+        String mainType = resolveTypeNameForTypedesc(mainTypeName, convert(schema, mainTypeName, false), this);
 
         List<String> allOfElements = new ArrayList<>();
         int count = 0;
@@ -467,8 +482,34 @@ public class Generator {
         ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(subTypeWithAnnot);
         nodes.put(subTypesName, moduleNode);
 
+        List<String> hoistedAnnotations = new ArrayList<>();
+        if (uneval) {
+            schema.setUnevaluatedItems(savedUnevaluatedItems);
+            schema.setUnevaluatedProperties(savedUnevaluatedProperties);
+
+            if (savedUnevaluatedItems != null) {
+                String itemsTypeName = name + UNEVALUATED_ITEMS_SUFFIX;
+                String convertedType = this.convert(savedUnevaluatedItems, itemsTypeName);
+                hoistedAnnotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE,
+                        UNEVALUATED_ITEMS_ANNOT,
+                        VALUE + COLON + resolveTypeNameForTypedesc(itemsTypeName, convertedType, this)));
+            }
+            if (savedUnevaluatedProperties != null) {
+                String propsTypeName = resolveNameConflicts(name + UNEVALUATED_PROPS, this);
+                String convertedType = this.convert(savedUnevaluatedProperties, propsTypeName);
+                hoistedAnnotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE,
+                        UNEVALUATED_PROPS,
+                        VALUE + COLON + resolveTypeNameForTypedesc(propsTypeName, convertedType, this)));
+            }
+        }
+
         String fullDeclaration = AT + ANNOTATION_MODULE + COLON + ALL_OF + NEW_LINE +
                 String.format(TYPE_FORMAT, name, mainType + PIPE + subTypesName);
+
+        if (!hoistedAnnotations.isEmpty()) {
+            fullDeclaration = String.join(NEW_LINE, hoistedAnnotations) + NEW_LINE + fullDeclaration;
+        }
+
         ModuleMemberDeclarationNode moduleNodeMain = NodeParser.parseModuleMemberDeclaration(fullDeclaration);
         nodes.put(name, moduleNodeMain);
         return name;
@@ -821,9 +862,6 @@ public class Generator {
             if (restItem.contains(PIPE)) {
                 restItem = OPEN_BRACKET + restItem + CLOSE_BRACKET;
             }
-        } else if (unevaluatedItems != null) {
-            String customTypeName = type + UNEVALUATED_ITEMS_SUFFIX;
-            restItem = this.convert(unevaluatedItems, customTypeName);
         }
 
         if ((endPosition < startPosition) || (restItem.equals(NEVER) && convertedPrefixItems.size() < startPosition)
@@ -914,8 +952,7 @@ public class Generator {
                     CLOSE_BRACES);
         }
 
-        // unevalItems will never trigger if items is there
-        if (unevaluatedItems != null && items == null) {
+        if (unevaluatedItems != null) {
             String customTypeName = type + UNEVALUATED_ITEMS_SUFFIX;
             String typeName = this.convert(unevaluatedItems, customTypeName);
             annotationParts.add(UNEVALUATED_ITEMS + COLON + WHITE_SPACE +
@@ -1477,5 +1514,11 @@ public class Generator {
         }
 
         return elseKeyword != null && hasNestedPropertyKeywords(elseKeyword, false);
+    }
+
+    private static boolean hasCombiningKeywords(Schema schema) {
+        return !schema.getAllOf().isEmpty() || !schema.getOneOf().isEmpty() || !schema.getAnyOf().isEmpty() ||
+                (schema.getIfKeyword() != null &&
+                        (schema.getThen() != null || schema.getElseKeyword() != null));
     }
 }

@@ -150,6 +150,7 @@ public class GeneratorUtils {
     public static final String DEPENDENT_SCHEMA = "DependentSchema";
     public static final String DEPENDENT_REQUIRED = "DependentRequired";
     public static final String UNEVALUATED_PROPS = "UnevaluatedProperties";
+    public static final String UNEVALUATED_ITEMS_ANNOT = "UnevaluatedItems";
     public static final String PATTERN_ELEMENT = "PatternElement";
     public static final String PATTERN_PROPERTIES = "PatternProperties";
     public static final String UNEVALUATED_ITEMS_SUFFIX = "UnevaluatedItems";
