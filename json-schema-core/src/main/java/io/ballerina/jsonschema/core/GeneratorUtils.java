@@ -132,12 +132,9 @@ public class GeneratorUtils {
     public static final String ANY_OF = "AnyOf";
     public static final String NOT = "Not";
 
-    public static final String INVALID_CHARS_PATTERN = ".*[!@$%^&*()_\\-|/\\\\\\s\\d].*";
-    public static final String DIGIT_PATTERN = ".*\\d.*";
+    public static final String INVALID_TYPE_NAME_CHAR_PATTERN = "[^A-Za-z0-9_]";
+    public static final String MULTIPLE_UNDERSCORES_PATTERN = "_+";
     public static final String STARTS_WITH_DIGIT_PATTERN = "^\\d.*";
-    public static final String SLASH_PATTERN = "[/\\\\]";
-    public static final String WHITESPACE_PATTERN = "\\s";
-    public static final String SPECIAL_CHARS_PATTERN = "[!@$%^&*()_\\-|]";
 
     public static final String STRING_ENCODING = "StringEncodedData";
     public static final String CONTENT_ENCODING = "contentEncoding";
@@ -500,16 +497,11 @@ public class GeneratorUtils {
     }
 
     static String sanitizeName(String input) {
-        if (!input.matches(INVALID_CHARS_PATTERN)
-                || (input.matches(DIGIT_PATTERN) && !input.matches(STARTS_WITH_DIGIT_PATTERN))) {
-            return input;
-        }
         if (input.matches(STARTS_WITH_DIGIT_PATTERN)) {
             input = UNDERSCORE + input;
         }
-        for (String placeholder : List.of(SLASH_PATTERN, WHITESPACE_PATTERN, SPECIAL_CHARS_PATTERN)) {
-            input = input.replaceAll(placeholder, UNDERSCORE);
-        }
+        input = input.replaceAll(INVALID_TYPE_NAME_CHAR_PATTERN, UNDERSCORE);
+        input = input.replaceAll(MULTIPLE_UNDERSCORES_PATTERN, UNDERSCORE);
         return input;
     }
 

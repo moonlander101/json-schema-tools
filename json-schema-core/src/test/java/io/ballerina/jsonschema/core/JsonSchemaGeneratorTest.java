@@ -264,4 +264,30 @@ public class JsonSchemaGeneratorTest {
         Assert.assertTrue(result.getTypes().contains("public type BarDependentSchema record {|"),
                 "Expected dependentSchemas to generate the nested dependent schema type");
     }
+
+    @Test
+    public void testDependentSchemasEscapesGeneratedTypeNames() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "dependentSchemas": {
+                    "foo\\tbar": {"minProperties": 4},
+                    "foo'bar": {"required": ["foo\\"bar"]}
+                  }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertFalse(result.getTypes().contains("Foo 'bar"),
+                "Generated type names should not contain apostrophes");
+        Assert.assertFalse(result.getTypes().contains("Foo\tbar"),
+                "Generated type names should not contain tabs");
+        Assert.assertTrue(result.getTypes().contains("Foo_barDependentSchema"),
+                "Expected sanitized dependent schema type name");
+        Assert.assertTrue(result.getTypes().contains("Foo_barDependentSchema1"),
+                "Expected conflicting sanitized names to be disambiguated");
+    }
 }
