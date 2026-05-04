@@ -171,4 +171,66 @@ public class JsonSchemaGeneratorTest {
         String expectedContent = Files.readString(expected);
         Assert.assertEquals(result.getTypes(), expectedContent, "Generated types do not match expected output");
     }
+
+    @Test
+    public void testEscapesSpecialCharacterPropertyNamesAndDependentRequired() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "dependentRequired": {
+                    "foo\\nbar": ["foo\\rbar"],
+                    "foo\\\"bar": ["foo'bar"]
+                  }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("'foo" + "\\" + "u{A}bar"),
+                "Expected newline key to use a quoted identifier");
+        Assert.assertTrue(result.getTypes().contains("'foo" + "\\" + "u{22}bar"),
+                "Expected quote key to use a quoted identifier");
+        Assert.assertTrue(result.getTypes().contains("'foo" + "\\" + "u{D}bar"),
+                "Expected carriage-return dependent key to use a quoted identifier");
+        Assert.assertTrue(result.getTypes().contains("'foo" + "\\" + "u{27}bar"),
+                "Expected apostrophe dependent key to use a quoted identifier");
+        Assert.assertTrue(result.getTypes().contains("[\"foo\\rbar\"]"),
+                "Expected dependentRequired values to be escaped as Ballerina string literals");
+        Assert.assertTrue(result.getTypes().contains("[\"foo'bar\"]"),
+                "Expected dependentRequired apostrophe values to remain valid string literals");
+    }
+
+    @Test
+    public void testRejectsEmptyPropertyName() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "": { "type": "string" }
+                  }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+
+        IllegalArgumentException exception = Assert.expectThrows(IllegalArgumentException.class,
+                () -> new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }}));
+        Assert.assertTrue(exception.getMessage().contains("non-empty"),
+                "Expected a hard failure for empty property names");
+    }
+
+    @Test
+    public void testGeneratorUtilsEscapesStringsAndComments() {
+        Assert.assertEquals(GeneratorUtils.toBallerinaStringLiteral("foo\nbar\"baz\\qux"),
+                "\"foo\\nbar\\\"baz\\\\qux\"");
+        Assert.assertEquals(GeneratorUtils.toBallerinaFieldIdentifier("foo\nbar"),
+                "'foo" + "\\" + "u{A}bar");
+        Assert.assertEquals(GeneratorUtils.toBallerinaFieldIdentifier("foo\"bar"),
+                "'foo" + "\\" + "u{22}bar");
+        Assert.assertEquals(GeneratorUtils.toCommentLines("line1\r\nline2").toString(), "[# line1, # line2]");
+    }
 }

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -301,11 +302,12 @@ public class GeneratorUtils {
         for (Map.Entry<String, RecordField> entry : recordFields.entrySet()) {
             String key = entry.getKey();
             RecordField value = entry.getValue();
+            String fieldName = toBallerinaFieldIdentifier(key);
 
             ArrayList<String> fieldAnnotation = new ArrayList<>();
 
             if (value.getDescription() != null) {
-                fieldAnnotation.add(COMMENT_HEADER + value.getDescription());
+                fieldAnnotation.addAll(toCommentLines(value.getDescription()));
             }
 
             String dependentSchema = value.getDependentSchema();
@@ -320,7 +322,7 @@ public class GeneratorUtils {
             if (!dependentRequired.isEmpty()) {
                 generator.addJsonDataImport();
                 String dependentArray = dependentRequired.stream()
-                        .map(name -> DOUBLE_QUOTATION + name + DOUBLE_QUOTATION)
+                        .map(GeneratorUtils::toBallerinaStringLiteral)
                         .collect(Collectors.joining(", ", "[", "]"));
                 String dependentRequiredString = String.format(FIELD_ANNOTATION_FORMAT, ANNOTATION_MODULE,
                         DEPENDENT_REQUIRED, dependentArray);
@@ -333,12 +335,12 @@ public class GeneratorUtils {
             if (value.isRequired()) {
                 if (value.getDefaultValue() != null) {
                     fieldAnnotation.add(deprecated + readOnly + String.join(WHITE_SPACE, value.getType(),
-                            key, EQUAL, value.getDefaultValue()));
+                            fieldName, EQUAL, value.getDefaultValue()));
                 } else {
-                    fieldAnnotation.add(deprecated + readOnly + value.getType() + WHITE_SPACE + key);
+                    fieldAnnotation.add(deprecated + readOnly + value.getType() + WHITE_SPACE + fieldName);
                 }
             } else {
-                fieldAnnotation.add(deprecated + readOnly + value.getType() + WHITE_SPACE + key + QUESTION_MARK);
+                fieldAnnotation.add(deprecated + readOnly + value.getType() + WHITE_SPACE + fieldName + QUESTION_MARK);
             }
 
             recordBody.add(String.join(NEW_LINE, fieldAnnotation) + SEMI_COLON);
@@ -366,8 +368,59 @@ public class GeneratorUtils {
 
     static void addStringIfNotNull(List<String> list, String key, Object value) {
         if (value != null) {
-            list.add(key + ": " + "\"" + value + "\"");
+            list.add(key + ": " + toBallerinaStringLiteral(String.valueOf(value)));
         }
+    }
+
+    static String toBallerinaStringLiteral(String raw) {
+        StringBuilder builder = new StringBuilder(DOUBLE_QUOTATION);
+        raw.codePoints().forEach(codePoint -> {
+            switch (codePoint) {
+                case '\\' -> builder.append("\\\\");
+                case '"' -> builder.append("\\\"");
+                case '\n' -> builder.append("\\n");
+                case '\r' -> builder.append("\\r");
+                case '\t' -> builder.append("\\t");
+                default -> {
+                    if (Character.isISOControl(codePoint)) {
+                        builder.append("\\u{")
+                                .append(Integer.toHexString(codePoint).toUpperCase(Locale.ROOT))
+                                .append("}");
+                    } else {
+                        builder.appendCodePoint(codePoint);
+                    }
+                }
+            }
+        });
+        builder.append(DOUBLE_QUOTATION);
+        return builder.toString();
+    }
+
+    static String toBallerinaFieldIdentifier(String raw) {
+        if (raw.isEmpty()) {
+            throw new IllegalArgumentException("JSON property names must be non-empty to generate Ballerina record fields");
+        }
+        if (isValidUnquotedIdentifier(raw)) {
+            return raw;
+        }
+
+        StringBuilder builder = new StringBuilder("'");
+        raw.codePoints().forEach(codePoint -> {
+            if (isValidQuotedIdentifierChar(codePoint)) {
+                builder.appendCodePoint(codePoint);
+            } else {
+                builder.append("\\u{")
+                        .append(Integer.toHexString(codePoint).toUpperCase(Locale.ROOT))
+                        .append("}");
+            }
+        });
+        return builder.toString();
+    }
+
+    static List<String> toCommentLines(String raw) {
+        return Arrays.stream(raw.split("\\R", -1))
+                .map(line -> COMMENT_HEADER + line)
+                .toList();
     }
 
     static String getFormattedAnnotation(List<String> annotationParts,
@@ -420,6 +473,30 @@ public class GeneratorUtils {
             return name;
         }
         return Character.toLowerCase(name.charAt(0)) + name.substring(1);
+    }
+
+    private static boolean isValidUnquotedIdentifier(String raw) {
+        int[] codePoints = raw.codePoints().toArray();
+        if (codePoints.length == 0) {
+            return false;
+        }
+        if (!isValidIdentifierInitialChar(codePoints[0])) {
+            return false;
+        }
+        for (int i = 1; i < codePoints.length; i++) {
+            if (!isValidQuotedIdentifierChar(codePoints[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isValidIdentifierInitialChar(int codePoint) {
+        return codePoint == '_' || Character.isLetter(codePoint);
+    }
+
+    private static boolean isValidQuotedIdentifierChar(int codePoint) {
+        return codePoint == '_' || Character.isLetterOrDigit(codePoint);
     }
 
     static String sanitizeName(String input) {

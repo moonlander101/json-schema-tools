@@ -157,6 +157,8 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.processRequiredFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveConstMapping;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveNameConflicts;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveTypeNameForTypedesc;
+import static io.ballerina.jsonschema.core.GeneratorUtils.toBallerinaStringLiteral;
+import static io.ballerina.jsonschema.core.GeneratorUtils.toCommentLines;
 import static io.ballerina.jsonschema.core.Schema.deepCopy;
 import static io.ballerina.jsonschema.core.SchemaUtils.convertToAbsoluteUri;
 import static io.ballerina.jsonschema.core.SchemaUtils.fetchSchemaId;
@@ -619,7 +621,7 @@ public class Generator {
         }
 
         if (typeAnnot != AnnotationAttachmentPoint.FIELD && schema.getDescription() != null) {
-            annotations.add(COMMENT_HEADER + schema.getDescription());
+            annotations.addAll(toCommentLines(schema.getDescription()));
         }
 
         List<String> annotationParts = new ArrayList<>();
@@ -1227,7 +1229,7 @@ public class Generator {
             return NULL;
         }
         if (obj instanceof String) {
-            return "\"" + obj + "\"";
+            return toBallerinaStringLiteral((String) obj);
         }
         if (obj instanceof Double || obj instanceof Boolean || obj instanceof Long) {
             return String.valueOf(obj);
@@ -1250,7 +1252,7 @@ public class Generator {
             for (Map.Entry<String, Object> entry : ((Map<String, Object>) obj).entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
-                result.add("\"" + key + "\"" + ":" + generateStringRepresentation(value));
+                result.add(toBallerinaStringLiteral(key) + ":" + generateStringRepresentation(value));
             }
             String enumConst = OPEN_BRACES + String.join(COMMA, result) + CLOSE_BRACES;
             String constDefinition = String.format("public const %s = %s;", objName, enumConst);
