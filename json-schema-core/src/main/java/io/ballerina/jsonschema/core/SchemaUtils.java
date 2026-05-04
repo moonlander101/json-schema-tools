@@ -125,8 +125,8 @@ public class SchemaUtils {
             }
         }
 
-        if (!schema.getDependentSchema().isEmpty()) {
-            fetchSchemaId(schema.getDependentSchema(), baseUri, idToSchemaMap);
+        if (!schema.getDependentSchemas().isEmpty()) {
+            fetchSchemaId(schema.getDependentSchemas(), baseUri, idToSchemaMap);
         }
 
         if (schema.getPropertyNames() != null) {
@@ -248,8 +248,8 @@ public class SchemaUtils {
             }
         }
 
-        if (!schema.getDependentSchema().isEmpty()) {
-            convertToAbsoluteUri(schema.getDependentSchema(), baseUri);
+        if (!schema.getDependentSchemas().isEmpty()) {
+            convertToAbsoluteUri(schema.getDependentSchemas(), baseUri);
         }
 
         if (schema.getPropertyNames() != null) {
@@ -376,8 +376,8 @@ public class SchemaUtils {
                 case "patternProperties" -> {
                     return fetchSchemaForMap(schema.getPatternProperties(), pathList);
                 }
-                case "dependentSchema" -> {
-                    return fetchSchemaForMap(schema.getDependentSchema(), pathList);
+                case "dependentSchemas" -> {
+                    return fetchSchemaForMap(schema.getDependentSchemas(), pathList);
                 }
                 case "propertyNames" -> {
                     return getSchemaByKeyword(schema.getPropertyNames(), pathList);

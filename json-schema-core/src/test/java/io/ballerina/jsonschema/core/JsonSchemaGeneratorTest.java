@@ -233,4 +233,35 @@ public class JsonSchemaGeneratorTest {
                 "'foo" + "\\" + "u{22}bar");
         Assert.assertEquals(GeneratorUtils.toCommentLines("line1\r\nline2").toString(), "[# line1, # line2]");
     }
+
+    @Test
+    public void testDependentSchemasUsesStandardKeyword() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "bar": { "type": "integer" }
+                  },
+                  "dependentSchemas": {
+                    "bar": {
+                      "type": "object",
+                      "properties": {
+                        "foo": { "type": "integer" },
+                        "bar": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:DependentSchema"),
+                "Expected dependentSchemas to generate the dependent schema annotation");
+        Assert.assertTrue(result.getTypes().contains("public type BarDependentSchema record {|"),
+                "Expected dependentSchemas to generate the nested dependent schema type");
+    }
 }

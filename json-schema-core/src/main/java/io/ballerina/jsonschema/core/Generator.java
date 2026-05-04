@@ -974,7 +974,7 @@ public class Generator {
         Object additionalProperties = schema.getAdditionalProperties();
         Map<String, Object> properties = schema.getProperties();
         Map<String, Object> patternProperties = schema.getPatternProperties();
-        Map<String, Object> dependentSchema = schema.getDependentSchema();
+        Map<String, Object> dependentSchemas = schema.getDependentSchemas();
         Object propertyNames = schema.getPropertyNames();
         Object unevaluatedProperties = schema.getUnevaluatedProperties();
         Long maxProperties = schema.getMaxProperties();
@@ -987,7 +987,7 @@ public class Generator {
         }
 
         if (areAllNullOrEmpty(additionalProperties, properties, patternProperties,
-                dependentSchema, propertyNames,
+                dependentSchemas, propertyNames,
                 unevaluatedProperties, maxProperties, minProperties, dependentRequired, required)) {
             return UNIVERSAL_OBJECT;
         }
@@ -1153,9 +1153,9 @@ public class Generator {
         }
 
         // Add dependent schema fields that are not specified in the properties' keyword.
-        if ((!dependentSchema.isEmpty()) && (!restType.equals(NEVER))) {
+        if ((!dependentSchemas.isEmpty()) && (!restType.equals(NEVER))) {
             String finalRestType = restType;
-            dependentSchema.forEach((key, value) -> {
+            dependentSchemas.forEach((key, value) -> {
                 if (!recordFields.containsKey(key)) {
                     recordFields.put(key, new GeneratorUtils.RecordField(finalRestType, false));
                 }
@@ -1170,7 +1170,7 @@ public class Generator {
                                 resolveTypeNameForTypedesc(schemaName, dependentSchemaType, this);
                     }
 
-                    recordFields.get(key).setDependentSchema(dependentSchemaType);
+                    recordFields.get(key).setDependentSchemaType(dependentSchemaType);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

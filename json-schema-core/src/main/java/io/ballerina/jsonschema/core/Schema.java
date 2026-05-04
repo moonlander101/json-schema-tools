@@ -53,7 +53,8 @@ class Schema {
     private Map<String, Object> patternProperties = new LinkedHashMap<>();
 
     @JsonAdapter(SchemaDeserializers.MapStringSchemaDeserializer.class)
-    private Map<String, Object> dependentSchema = new LinkedHashMap<>();
+    @SerializedName("dependentSchemas")
+    private Map<String, Object> dependentSchemas = new LinkedHashMap<>();
 
     @JsonAdapter(SchemaDeserializers.PropertyNameDeserializer.class)
     private Object propertyNames;
@@ -187,7 +188,7 @@ class Schema {
             Object additionalProperties,
             Map<String, Object> properties,
             Map<String, Object> patternProperties,
-            Map<String, Object> dependentSchema,
+            Map<String, Object> dependentSchemas,
             Object propertyNames,
             Object ifKeyword,
             Object then,
@@ -257,7 +258,7 @@ class Schema {
         this.additionalProperties = additionalProperties;
         this.properties = properties;
         this.patternProperties = patternProperties;
-        this.dependentSchema = dependentSchema;
+        this.dependentSchemas = dependentSchemas;
         this.propertyNames = propertyNames;
         this.ifKeyword = ifKeyword;
         this.then = then;
@@ -362,12 +363,12 @@ class Schema {
         this.patternProperties = (patternProperties != null) ? patternProperties : new LinkedHashMap<>();
     }
 
-    public Map<String, Object> getDependentSchema() {
-        return dependentSchema;
+    public Map<String, Object> getDependentSchemas() {
+        return dependentSchemas;
     }
 
-    public void setDependentSchema(Map<String, Object> dependentSchema) {
-        this.dependentSchema = (dependentSchema != null) ? dependentSchema : new LinkedHashMap<>();
+    public void setDependentSchemas(Map<String, Object> dependentSchemas) {
+        this.dependentSchemas = (dependentSchemas != null) ? dependentSchemas : new LinkedHashMap<>();
     }
 
     public Object getPropertyNames() {
@@ -791,7 +792,7 @@ class Schema {
                 Objects.equals(additionalProperties, schema.additionalProperties) &&
                 Objects.equals(properties, schema.properties) &&
                 Objects.equals(patternProperties, schema.patternProperties) &&
-                Objects.equals(dependentSchema, schema.dependentSchema) &&
+                Objects.equals(dependentSchemas, schema.dependentSchemas) &&
                 Objects.equals(propertyNames, schema.propertyNames) &&
                 Objects.equals(ifKeyword, schema.ifKeyword) &&
                 Objects.equals(then, schema.then) &&
@@ -848,7 +849,7 @@ class Schema {
     public int hashCode() {
         return Objects.hash(
                 prefixItems, items, contains, additionalProperties, properties, patternProperties,
-                dependentSchema, propertyNames, ifKeyword, then, elseKeyword, allOf, oneOf, anyOf, not,
+                dependentSchemas, propertyNames, ifKeyword, then, elseKeyword, allOf, oneOf, anyOf, not,
                 contentEncoding, contentMediaType, contentSchema, idKeyword, schemaKeyword, refKeyword,
                 anchorKeyword, dynamicRefKeyword, dynamicAnchorKeyword, vocabularyKeyword,
                 commentKeyword, defsKeyword, format, title, description, defaultKeyword, deprecated,
@@ -894,7 +895,7 @@ class Schema {
             copiedSchema.setAdditionalProperties(deepCopy(schema.getAdditionalProperties()));
             copiedSchema.setProperties((Map<String, Object>) deepCopy(schema.getProperties()));
             copiedSchema.setPatternProperties((Map<String, Object>) deepCopy(schema.getPatternProperties()));
-            copiedSchema.setDependentSchema((Map<String, Object>) deepCopy(schema.getDependentSchema()));
+            copiedSchema.setDependentSchemas((Map<String, Object>) deepCopy(schema.getDependentSchemas()));
             copiedSchema.setPropertyNames(deepCopy(schema.getPropertyNames()));
             copiedSchema.setIfKeyword(deepCopy(schema.getIfKeyword()));
             copiedSchema.setThen(deepCopy(schema.getThen()));

@@ -175,7 +175,7 @@ public class GeneratorUtils {
         private boolean required;
 
         private List<String> dependentRequired;
-        private String dependentSchema;
+        private String dependentSchemaType;
         private String defaultValue;
         private String description;
         private boolean readOnly;
@@ -185,7 +185,7 @@ public class GeneratorUtils {
             this.type = type;
             this.required = required;
             this.dependentRequired = new ArrayList<>();
-            this.dependentSchema = null;
+            this.dependentSchemaType = null;
             this.defaultValue = null;
             this.readOnly = false;
             this.deprecated = false;
@@ -207,12 +207,12 @@ public class GeneratorUtils {
             this.required = true;
         }
 
-        String getDependentSchema() {
-            return dependentSchema;
+        String getDependentSchemaType() {
+            return dependentSchemaType;
         }
 
-        void setDependentSchema(String dependentSchema) {
-            this.dependentSchema = dependentSchema;
+        void setDependentSchemaType(String dependentSchemaType) {
+            this.dependentSchemaType = dependentSchemaType;
         }
 
         List<String> getDependentRequired() {
@@ -310,11 +310,11 @@ public class GeneratorUtils {
                 fieldAnnotation.addAll(toCommentLines(value.getDescription()));
             }
 
-            String dependentSchema = value.getDependentSchema();
-            if (dependentSchema != null) {
+            String dependentSchemaType = value.getDependentSchemaType();
+            if (dependentSchemaType != null) {
                 generator.addJsonDataImport();
                 String dependentSchemaString = String.format(
-                        FIELD_ANNOTATION_FORMAT, ANNOTATION_MODULE, DEPENDENT_SCHEMA, dependentSchema);
+                        FIELD_ANNOTATION_FORMAT, ANNOTATION_MODULE, DEPENDENT_SCHEMA, dependentSchemaType);
                 fieldAnnotation.add(dependentSchemaString);
             }
 
