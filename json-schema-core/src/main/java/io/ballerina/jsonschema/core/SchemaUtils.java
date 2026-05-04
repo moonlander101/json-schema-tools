@@ -70,7 +70,7 @@ public class SchemaUtils {
         }
 
         if (schema.getIdKeyword() != null) {
-            baseUri = URI.create(schema.getIdKeyword());
+            baseUri = baseUri.resolve(URI.create(schema.getIdKeyword()));
             if (idToSchemaMap.containsKey(baseUri)) {
                 throw new RuntimeException("Schema id \"" + schema.getIdKeyword() + "\" is not unique");
             }
@@ -79,18 +79,20 @@ public class SchemaUtils {
         if (schema.getAnchorKeyword() != null) {
             // TODO: validate the anchor expression
             URI uri = URI.create("#" + schema.getAnchorKeyword());
-            if (idToSchemaMap.containsKey(uri)) {
+            URI resolvedUri = baseUri.resolve(uri);
+            if (idToSchemaMap.containsKey(resolvedUri)) {
                 throw new RuntimeException("Schema anchor \"" + schema.getAnchorKeyword() + "\" is not unique");
             }
-            idToSchemaMap.put(baseUri.resolve(uri), schema);
+            idToSchemaMap.put(resolvedUri, schema);
         }
         if (schema.getDynamicAnchorKeyword() != null) {
             // TODO: validate the anchor expression
             URI uri = URI.create("#" + schema.getDynamicAnchorKeyword());
-            if (idToSchemaMap.containsKey(uri)) {
+            URI resolvedUri = baseUri.resolve(uri);
+            if (idToSchemaMap.containsKey(resolvedUri)) {
                 throw new RuntimeException("Schema anchor \"" + schema.getDynamicAnchorKeyword() + "\" is not unique");
             }
-            idToSchemaMap.put(baseUri.resolve(uri), schema);
+            idToSchemaMap.put(resolvedUri, schema);
         }
 
         if (!schema.getPrefixItems().isEmpty()) {
@@ -189,6 +191,12 @@ public class SchemaUtils {
             return;
         }
 
+        // Change the base URI for the sub schemas
+        if (schema.getIdKeyword() != null) {
+            baseUri = baseUri.resolve(URI.create(schema.getIdKeyword()));
+            schema.setIdKeyword(baseUri.toString());
+        }
+
         // Resolving $ref and $dynamicRef
         String refKeyword = schema.getRefKeyword();
         if (refKeyword != null) {
@@ -208,11 +216,6 @@ public class SchemaUtils {
                 URI uri = URI.create(schema.getDynamicRefKeyword());
                 schema.setDynamicRefKeyword(baseUri.resolve(uri).toString());
             }
-        }
-
-        // Change the base URI for the sub schemas
-        if (schema.getIdKeyword() != null) {
-            baseUri = URI.create(schema.getIdKeyword());
         }
 
         if (!schema.getPrefixItems().isEmpty()) {
