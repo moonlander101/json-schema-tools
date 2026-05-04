@@ -937,14 +937,7 @@ public class Generator {
             List<String> containsAnnotationParts = new ArrayList<>();
 
             containsAnnotationParts.add(VALUE + COLON + WHITE_SPACE + newType);
-            if (minContains == null) {
-                containsAnnotationParts.add(MIN_CONTAINS + COLON + WHITE_SPACE +
-                        ZERO);
-            } else {
-                containsAnnotationParts.add(MIN_CONTAINS + COLON + WHITE_SPACE +
-                        minContains);
-            }
-
+            addIfNotNull(containsAnnotationParts, MIN_CONTAINS, minContains);
             addIfNotNull(containsAnnotationParts, MAX_CONTAINS, maxContains);
 
             String combined = String.join(COMMA, containsAnnotationParts);
