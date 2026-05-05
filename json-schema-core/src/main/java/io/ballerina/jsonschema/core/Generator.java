@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -63,7 +64,6 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.CLOSE_SQUARE_BRACKET;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COLON;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COMMA;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COMMENT;
-import static io.ballerina.jsonschema.core.GeneratorUtils.COMMENT_HEADER;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CONTAINS;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CONTENT_ENCODING;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CONTENT_MEDIA_TYPE;
@@ -142,7 +142,6 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.UNIVERSAL_OBJECT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.VALUE;
 import static io.ballerina.jsonschema.core.GeneratorUtils.WHITE_SPACE;
 import static io.ballerina.jsonschema.core.GeneratorUtils.WRITE_ONLY;
-import static io.ballerina.jsonschema.core.GeneratorUtils.ZERO;
 import static io.ballerina.jsonschema.core.GeneratorUtils.addIfNotNull;
 import static io.ballerina.jsonschema.core.GeneratorUtils.addStringIfNotNull;
 import static io.ballerina.jsonschema.core.GeneratorUtils.convertToCamelCase;
@@ -152,11 +151,14 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.handleUnion;
 import static io.ballerina.jsonschema.core.GeneratorUtils.isInvalidNumberLimit;
 import static io.ballerina.jsonschema.core.GeneratorUtils.areAllNullOrEmpty;
 import static io.ballerina.jsonschema.core.GeneratorUtils.isPrimitiveBalType;
+import static io.ballerina.jsonschema.core.GeneratorUtils.materializeContextualTypeAlias;
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRecordFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRequiredFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveConstMapping;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveNameConflicts;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveTypeNameForTypedesc;
+import static io.ballerina.jsonschema.core.GeneratorUtils.stripOuterMetadataAndCoreKeywords;
+import static io.ballerina.jsonschema.core.GeneratorUtils.stripReferenceWrapperToMetadataOnly;
 import static io.ballerina.jsonschema.core.GeneratorUtils.toBallerinaStringLiteral;
 import static io.ballerina.jsonschema.core.GeneratorUtils.toCommentLines;
 import static io.ballerina.jsonschema.core.Schema.deepCopy;
@@ -180,6 +182,7 @@ public class Generator {
     final List<JsonSchemaDiagnostic> diagnostics = new ArrayList<>();
 
     final Map<URI, Schema> idToSchemaMap = new HashMap<>();
+    final Map<Schema, String> schemaToCanonicalTypeMap = new IdentityHashMap<>();
     final Map<Schema, String> schemaToTypeMap = new HashMap<>();
 
     private int constCounter = 0;
@@ -230,6 +233,25 @@ public class Generator {
         // Create a copy list to facilitate future schema mutations.
         for (Object schemaObject : schemaObjectList) {
             schemaCopyList.add(deepCopy(schemaObject));
+        }
+
+        if (schemaObjectList.getFirst() instanceof Schema originalSchema &&
+                schemaCopyList.getFirst() instanceof Schema copiedSchema) {
+            String schemaName = this.resolveSchemaName(schemaObjectList.getFirst(), schemaToFileMap);
+            this.schemaToCanonicalTypeMap.put(originalSchema, schemaName);
+            this.schemaToCanonicalTypeMap.put(copiedSchema, schemaName);
+        }
+
+        if (!schemaToFileMap.isEmpty()) {
+            for (int index = 1; index < schemaCopyList.size(); index++) {
+                Object originalSchemaObject = schemaObjectList.get(index);
+                Object copiedSchemaObject = schemaCopyList.get(index);
+                if (originalSchemaObject instanceof Schema originalSchema && copiedSchemaObject instanceof Schema copiedSchema) {
+                    String schemaName = this.resolveSchemaName(originalSchemaObject, schemaToFileMap);
+                    this.schemaToCanonicalTypeMap.put(originalSchema, schemaName);
+                    this.schemaToCanonicalTypeMap.put(copiedSchema, schemaName);
+                }
+            }
         }
 
         // Generate the ballerina code for each json schema file object.
@@ -285,11 +307,15 @@ public class Generator {
         Schema schema = (Schema) schemaObject;
 
         if (schema.getRefKeyword() != null) {
-            Object obj = getSchemaById(idToSchemaMap, schema.getRefKeyword());
-            return convert(obj, name);
+            if (rewriteReferenceWithSiblingConstraints(schema)) {
+                Object obj = getSchemaById(idToSchemaMap, schema.getRefKeyword());
+                return resolveReferencedType(obj, name);
+            }
         } else if (schema.getDynamicRefKeyword() != null) {
-            Object obj = getSchemaById(idToSchemaMap, schema.getDynamicRefKeyword());
-            return convert(obj, name);
+            if (rewriteReferenceWithSiblingConstraints(schema)) {
+                Object obj = getSchemaById(idToSchemaMap, schema.getDynamicRefKeyword());
+                return resolveReferencedType(obj, name);
+            }
         }
 
         if (schemaToTypeMap.containsKey(schema)) {
@@ -423,6 +449,25 @@ public class Generator {
         return convert(newSchema, name);
     }
 
+    private boolean rewriteReferenceWithSiblingConstraints(Schema schema) {
+        Schema siblingSchema = (Schema) deepCopy(schema);
+        siblingSchema.setRefKeyword(null);
+        siblingSchema.setDynamicRefKeyword(null);
+        stripOuterMetadataAndCoreKeywords(siblingSchema);
+
+        if (siblingSchema.equals(new Schema())) {
+            return true;
+        }
+
+        Schema refOnlySchema = new Schema();
+        refOnlySchema.setRefKeyword(schema.getRefKeyword());
+        refOnlySchema.setDynamicRefKeyword(schema.getDynamicRefKeyword());
+
+        stripReferenceWrapperToMetadataOnly(schema);
+        schema.setAllOf(new ArrayList<>(List.of(refOnlySchema, siblingSchema)));
+        return false;
+    }
+
     private static void removeMetaDataAndTypeInfo(Schema schema) {
         schema.setType(null);
         schema.setConstKeyword(null);
@@ -459,7 +504,7 @@ public class Generator {
             schema.setUnevaluatedProperties(null);
         }
 
-        name = resolveNameConflicts(name, this);
+        name = resolveNameConflicts(convertToPascalCase(name), this);
         String mainTypeName = name + "MainType";
         String mainType = resolveTypeNameForTypedesc(mainTypeName, convert(schema, mainTypeName, false), this);
 
@@ -471,7 +516,7 @@ public class Generator {
             do {
                 elementName = name + combType + (++count);
             } while (this.nodes.containsKey(elementName));
-            String allOfElement = resolveTypeNameForTypedesc(elementName, convert(obj, elementName), this);
+            String allOfElement = materializeContextualTypeAlias(elementName, convert(obj, elementName), this);
             allOfElements.add(allOfElement);
         }
 
@@ -861,9 +906,19 @@ public class Generator {
         String restItem = JSON;
         if (items != null) {
             restItem = this.convert(items, type + NAME_REST_ITEM);
-            if (restItem.contains(PIPE)) {
-                restItem = OPEN_BRACKET + restItem + CLOSE_BRACKET;
+        }
+
+        boolean requiresStableArrayAliases = !convertedPrefixItems.isEmpty() && startPosition < convertedPrefixItems.size();
+        if (requiresStableArrayAliases) {
+            for (int i = (int) startPosition; i < convertedPrefixItems.size(); i++) {
+                convertedPrefixItems.set(i, materializeContextualTypeAlias(type + ITEM_SUFFIX + i,
+                        convertedPrefixItems.get(i), this));
             }
+            if (!restItem.equals(NEVER)) {
+                restItem = materializeContextualTypeAlias(type + NAME_REST_ITEM, restItem, this);
+            }
+        } else if (restItem.contains(PIPE)) {
+            restItem = OPEN_BRACKET + restItem + CLOSE_BRACKET;
         }
 
         if ((endPosition < startPosition) || (restItem.equals(NEVER) && convertedPrefixItems.size() < startPosition)
@@ -903,10 +958,12 @@ public class Generator {
                 }
                 List<String> restMembers = new ArrayList<>(
                         convertedPrefixItems.subList((int) startPosition, convertedPrefixItems.size()));
-                if (restItem.contains(PIPE)) {
-                    restItem = restItem.substring(1, restItem.length() - 1);
+                if (!restItem.equals(NEVER)) {
+                    if (restItem.contains(PIPE)) {
+                        restItem = restItem.substring(1, restItem.length() - 1);
+                    }
+                    restMembers.add(restItem);
                 }
-                restMembers.add(restItem);
                 String restItemType = OPEN_BRACKET + String.join(PIPE, restMembers) + CLOSE_BRACKET;
                 arrayItems.add(restItemType + REST);
             }
@@ -1285,6 +1342,16 @@ public class Generator {
             this.nodes.put(name, NodeParser.parseModuleMemberDeclaration(""));
             this.schemaToTypeMap.put(schema, name);
         }
+    }
+
+    private String resolveReferencedType(Object schemaObject, String fallbackName) throws Exception {
+        if (schemaObject instanceof Schema schema) {
+            String canonicalName = this.schemaToCanonicalTypeMap.get(schema);
+            if (canonicalName != null) {
+                return canonicalName;
+            }
+        }
+        return convert(schemaObject, fallbackName);
     }
 
     private static BalTypes getCommonType(List<Object> enumKeyword, Object constKeyword,

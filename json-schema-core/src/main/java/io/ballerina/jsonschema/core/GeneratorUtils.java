@@ -25,6 +25,7 @@ import io.ballerina.jsonschema.core.diagnostic.JsonSchemaDiagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -293,6 +294,17 @@ public class GeneratorUtils {
         return newType;
     }
 
+    static String materializeContextualTypeAlias(String name, String typeName, Generator generator) {
+        String newType = resolveNameConflicts(name, generator);
+        if (newType.equals(typeName)) {
+            return typeName;
+        }
+        String typeDeclaration = String.format(TYPE_FORMAT, newType, typeName);
+        ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(typeDeclaration);
+        generator.nodes.put(newType, moduleNode);
+        return newType;
+    }
+
     static ArrayList<String> processRecordFields(Map<String, RecordField> recordFields, Generator generator) {
         ArrayList<String> recordBody = new ArrayList<>();
 
@@ -515,5 +527,67 @@ public class GeneratorUtils {
 
     static void addDiagnostic(JsonSchemaDiagnostic diagnostic, Generator generator) {
         generator.diagnostics.add(diagnostic);
+    }
+
+    static void stripOuterMetadataAndCoreKeywords(Schema schema) {
+        schema.setIdKeyword(null);
+        schema.setSchemaKeyword(null);
+        schema.setAnchorKeyword(null);
+        schema.setDynamicAnchorKeyword(null);
+        schema.setVocabularyKeyword(null);
+        schema.setDefsKeyword(new LinkedHashMap<>());
+        schema.setTitle(null);
+        schema.setDescription(null);
+        schema.setDefaultKeyword(null);
+        schema.setDeprecated(null);
+        schema.setReadOnly(null);
+        schema.setWriteOnly(null);
+        schema.setExamples(new ArrayList<>());
+        schema.setCommentKeyword(null);
+    }
+
+    static void stripReferenceWrapperToMetadataOnly(Schema schema) {
+        schema.setRefKeyword(null);
+        schema.setDynamicRefKeyword(null);
+        schema.setPrefixItems(new ArrayList<>());
+        schema.setItems(null);
+        schema.setContains(null);
+        schema.setAdditionalProperties(null);
+        schema.setProperties(new LinkedHashMap<>());
+        schema.setPatternProperties(new LinkedHashMap<>());
+        schema.setDependentSchemas(new LinkedHashMap<>());
+        schema.setPropertyNames(null);
+        schema.setIfKeyword(null);
+        schema.setThen(null);
+        schema.setElseKeyword(null);
+        schema.setOneOf(new ArrayList<>());
+        schema.setAnyOf(new ArrayList<>());
+        schema.setNot(null);
+        schema.setContentEncoding(null);
+        schema.setContentMediaType(null);
+        schema.setContentSchema(null);
+        schema.setFormat(null);
+        schema.setUnevaluatedItems(null);
+        schema.setUnevaluatedProperties(null);
+        schema.setType(new ArrayList<>());
+        schema.setConstKeyword(null);
+        schema.setEnumKeyword(new ArrayList<>());
+        schema.setMultipleOf(null);
+        schema.setMaximum(null);
+        schema.setExclusiveMaximum(null);
+        schema.setMinimum(null);
+        schema.setExclusiveMinimum(null);
+        schema.setMaxLength(null);
+        schema.setMinLength(null);
+        schema.setPattern(null);
+        schema.setMaxItems(null);
+        schema.setMinItems(null);
+        schema.setUniqueItems(null);
+        schema.setMaxContains(null);
+        schema.setMinContains(null);
+        schema.setMaxProperties(null);
+        schema.setMinProperties(null);
+        schema.setRequired(new ArrayList<>());
+        schema.setDependentRequired(new LinkedHashMap<>());
     }
 }

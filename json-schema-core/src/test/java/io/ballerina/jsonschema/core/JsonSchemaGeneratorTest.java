@@ -121,7 +121,8 @@ public class JsonSchemaGeneratorTest {
                 {"86_multiple_combined.json", "86_multiple_combined.bal"},
                 {"87_nested_combining_keywords.json", "87_nested_combining_keywords.bal"},
                 {"88_nested_combining_keywords.json", "88_nested_combining_keywords.bal"},
-                {"91_relative_nested_ids_anchor.json", "91_relative_nested_ids_anchor.bal"}
+                {"91_relative_nested_ids_anchor.json", "91_relative_nested_ids_anchor.bal"},
+                {"92_root_ref_without_explicit_type.json", "92_root_ref_without_explicit_type.bal"}
         };
     }
 
@@ -289,5 +290,83 @@ public class JsonSchemaGeneratorTest {
                 "Expected sanitized dependent schema type name");
         Assert.assertTrue(result.getTypes().contains("Foo_barDependentSchema1"),
                 "Expected conflicting sanitized names to be disambiguated");
+    }
+
+    @Test
+    public void testRefWithSiblingKeywordsIsCombined() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "$defs": {
+                    "base": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  },
+                  "$ref": "#/$defs/base",
+                  "minItems": 2
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:AllOf"),
+                "Expected $ref with sibling constraints to be rewritten as an allOf combination");
+        Assert.assertTrue(result.getTypes().contains("minItems: 2"),
+                "Expected sibling constraints to be preserved alongside the referenced schema");
+        Assert.assertTrue(result.getTypes().contains("Foo foo?;"),
+                "Expected generated property types to use PascalCase named types");
+    }
+
+    @Test
+    public void testOneOfBranchesMaterializeDistinctAliases() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "oneOf": [{}, {}, {}]
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("public type SchemaOneOf1 json;"),
+                "Expected the first oneOf branch to be materialized as a named alias");
+        Assert.assertTrue(result.getTypes().contains("public type SchemaOneOf2 json;"),
+                "Expected the second oneOf branch to be materialized as a named alias");
+        Assert.assertTrue(result.getTypes().contains("public type SchemaOneOf3 json;"),
+                "Expected the third oneOf branch to be materialized as a named alias");
+        Assert.assertTrue(result.getTypes().contains(
+        "public type SchemaSubTypes SchemaOneOf1|SchemaOneOf2|SchemaOneOf3;"),
+                "Expected oneOf union members to keep distinct aliases");
+    }
+
+    @Test
+    public void testArrayRestUnionMaterializesDistinctAliases() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "array",
+                  "prefixItems": [{}, {}],
+                  "minItems": 1,
+                  "items": {}
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("public type SchemaItem1 json;"),
+                "Expected overlapping prefix items to be materialized with their stable item alias");
+        Assert.assertTrue(result.getTypes().contains("public type SchemaRestItem json;"),
+                "Expected items to be materialized with a stable rest-item alias");
+        Assert.assertTrue(result.getTypes().contains("prefixItems: [json, SchemaItem1]"),
+                "Expected the prefixItems annotation to reuse the same alias as the rest union");
+        Assert.assertTrue(result.getTypes().contains("[json, (SchemaItem1|SchemaRestItem)...]"),
+                "Expected merged array rest unions to reuse stable aliases");
     }
 }
