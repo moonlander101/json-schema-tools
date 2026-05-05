@@ -151,7 +151,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.handleUnion;
 import static io.ballerina.jsonschema.core.GeneratorUtils.isInvalidNumberLimit;
 import static io.ballerina.jsonschema.core.GeneratorUtils.areAllNullOrEmpty;
 import static io.ballerina.jsonschema.core.GeneratorUtils.isPrimitiveBalType;
-import static io.ballerina.jsonschema.core.GeneratorUtils.materializeContextualTypeAlias;
+import static io.ballerina.jsonschema.core.GeneratorUtils.materializeContextualTypeAliases;
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRecordFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRequiredFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveConstMapping;
@@ -508,7 +508,7 @@ public class Generator {
         String mainTypeName = name + "MainType";
         String mainType = resolveTypeNameForTypedesc(mainTypeName, convert(schema, mainTypeName, false), this);
 
-        List<String> allOfElements = new ArrayList<>();
+        List<GeneratorUtils.ContextualTypeMember> allOfMembers = new ArrayList<>();
         int count = 0;
         for (Object obj : combiningList) {
             transferType(schema, obj);
@@ -516,9 +516,9 @@ public class Generator {
             do {
                 elementName = name + combType + (++count);
             } while (this.nodes.containsKey(elementName));
-            String allOfElement = materializeContextualTypeAlias(elementName, convert(obj, elementName), this);
-            allOfElements.add(allOfElement);
+            allOfMembers.add(new GeneratorUtils.ContextualTypeMember(elementName, convert(obj, elementName)));
         }
+        List<String> allOfElements = materializeContextualTypeAliases(allOfMembers, this);
 
         addJsonDataImport();
         String subTypesName = resolveNameConflicts(name + "SubTypes", this);
@@ -660,6 +660,7 @@ public class Generator {
         List<String> annotations = new ArrayList<>();
 
         if (schema.getNot() != null) {
+            addJsonDataImport();
             annotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, NOT,
                     VALUE + COLON + resolveTypeNameForTypedesc(name + NOT,
                             this.convert(schema.getNot(), name + NOT), this)));
@@ -910,12 +911,21 @@ public class Generator {
 
         boolean requiresStableArrayAliases = !convertedPrefixItems.isEmpty() && startPosition < convertedPrefixItems.size();
         if (requiresStableArrayAliases) {
+            List<GeneratorUtils.ContextualTypeMember> arrayMembers = new ArrayList<>();
             for (int i = (int) startPosition; i < convertedPrefixItems.size(); i++) {
-                convertedPrefixItems.set(i, materializeContextualTypeAlias(type + ITEM_SUFFIX + i,
-                        convertedPrefixItems.get(i), this));
+                arrayMembers.add(new GeneratorUtils.ContextualTypeMember(type + ITEM_SUFFIX + i,
+                        convertedPrefixItems.get(i)));
             }
             if (!restItem.equals(NEVER)) {
-                restItem = materializeContextualTypeAlias(type + NAME_REST_ITEM, restItem, this);
+                arrayMembers.add(new GeneratorUtils.ContextualTypeMember(type + NAME_REST_ITEM, restItem));
+            }
+            List<String> resolvedArrayMembers = materializeContextualTypeAliases(arrayMembers, this);
+            int memberIndex = 0;
+            for (int i = (int) startPosition; i < convertedPrefixItems.size(); i++) {
+                convertedPrefixItems.set(i, resolvedArrayMembers.get(memberIndex++));
+            }
+            if (!restItem.equals(NEVER)) {
+                restItem = resolvedArrayMembers.get(memberIndex);
             }
         } else if (restItem.contains(PIPE)) {
             restItem = OPEN_BRACKET + restItem + CLOSE_BRACKET;
@@ -1090,6 +1100,13 @@ public class Generator {
         String restType = getRecordRestType(type, additionalProperties,
                 unevaluatedProperties, this);
 
+        if (Boolean.TRUE.equals(additionalProperties) && patternProperties.isEmpty()) {
+            this.addJsonDataImport();
+            String additionalPropsAnnotation = String.format(ANNOTATION_FORMAT,
+                    ANNOTATION_MODULE, ADDITIONAL_PROPS, VALUE + COLON + JSON);
+            objectAnnotations.add(additionalPropsAnnotation);
+        }
+
         if (uneval) {
             String unevalPropName = resolveNameConflicts(type + UNEVALUATED_PROPS, this);
             String unevalAnnotation = String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, UNEVALUATED_PROPS,
@@ -1131,13 +1148,15 @@ public class Generator {
                 patternTypes.add(generatedType);
             }
 
-            String resolvedRestType =
-                    resolveTypeNameForTypedesc(REST_TYPE, restType, this);
+            if (additionalProperties != null) {
+                String resolvedRestType =
+                        resolveTypeNameForTypedesc(REST_TYPE, restType, this);
 
-            String restTypeAnnotation = String.format(ANNOTATION_FORMAT,
-                    ANNOTATION_MODULE, ADDITIONAL_PROPS,
-                    VALUE + COLON + resolvedRestType);
-            objectAnnotations.add(restTypeAnnotation);
+                String restTypeAnnotation = String.format(ANNOTATION_FORMAT,
+                        ANNOTATION_MODULE, ADDITIONAL_PROPS,
+                        VALUE + COLON + resolvedRestType);
+                objectAnnotations.add(restTypeAnnotation);
+            }
 
             String patternElementsArray =
                     OPEN_SQUARE_BRACKET + String.join(COMMA, propertyPatternTypes) + CLOSE_SQUARE_BRACKET;

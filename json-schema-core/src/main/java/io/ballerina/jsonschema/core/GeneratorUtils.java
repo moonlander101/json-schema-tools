@@ -258,6 +258,24 @@ public class GeneratorUtils {
         }
     }
 
+    static class ContextualTypeMember {
+        private final String aliasSeed;
+        private final String typeName;
+
+        ContextualTypeMember(String aliasSeed, String typeName) {
+            this.aliasSeed = aliasSeed;
+            this.typeName = typeName;
+        }
+
+        String getAliasSeed() {
+            return aliasSeed;
+        }
+
+        String getTypeName() {
+            return typeName;
+        }
+    }
+
     static void processRequiredFields(Map<String, RecordField> recordFields) {
         boolean changeFlag = true;
         while (changeFlag) {
@@ -294,15 +312,33 @@ public class GeneratorUtils {
         return newType;
     }
 
-    static String materializeContextualTypeAlias(String name, String typeName, Generator generator) {
-        String newType = resolveNameConflicts(name, generator);
-        if (newType.equals(typeName)) {
-            return typeName;
+    static List<String> materializeContextualTypeAliases(List<ContextualTypeMember> members, Generator generator) {
+        Map<String, Integer> typeCounts = new LinkedHashMap<>();
+        for (ContextualTypeMember member : members) {
+            typeCounts.merge(member.getTypeName(), 1, Integer::sum);
         }
-        String typeDeclaration = String.format(TYPE_FORMAT, newType, typeName);
-        ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(typeDeclaration);
-        generator.nodes.put(newType, moduleNode);
-        return newType;
+
+        List<String> resolvedMembers = new ArrayList<>();
+        for (ContextualTypeMember member : members) {
+            String typeName = member.getTypeName();
+            boolean shouldAlias = typeCounts.getOrDefault(typeName, 0) > 1 || typeName.contains(PIPE);
+            if (!shouldAlias) {
+                resolvedMembers.add(typeName);
+                continue;
+            }
+
+            String newType = resolveNameConflicts(member.getAliasSeed(), generator);
+            if (newType.equals(typeName)) {
+                resolvedMembers.add(typeName);
+                continue;
+            }
+
+            String typeDeclaration = String.format(TYPE_FORMAT, newType, typeName);
+            ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(typeDeclaration);
+            generator.nodes.put(newType, moduleNode);
+            resolvedMembers.add(newType);
+        }
+        return resolvedMembers;
     }
 
     static ArrayList<String> processRecordFields(Map<String, RecordField> recordFields, Generator generator) {
