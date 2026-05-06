@@ -76,6 +76,7 @@ public class GeneratorUtils {
     public static final String JSON = "json";
     public static final String UNIVERSAL_ARRAY = "[json...]";
     public static final String EMPTY_ARRAY = "json[0]";
+    public static final String EMPTY_ARRAY_CONSTANT = "[]";
     public static final String UNIVERSAL_OBJECT = "record{|json...;|}";
     public static final String EMPTY_RECORD = "record{||}";
 
@@ -158,6 +159,7 @@ public class GeneratorUtils {
     public static final String DUMMY_SCHEME = "placeholder:/";
     public static final String COMMENT_HEADER = "# ";
     public static final String CONST_MAPPING_PREFIX = "MAPPING_";
+    public static final String EMPTY_ARRAY_CONST_NAME = "EMPTY_ARRAY";
 
     static final ArrayList<String> STRING_FORMATS = new ArrayList<>(
             Arrays.asList("date", "time", "date-time", "duration", "regex", "email", "idn-email", "hostname",
@@ -607,7 +609,7 @@ public class GeneratorUtils {
         schema.setUnevaluatedProperties(null);
         schema.setType(new ArrayList<>());
         schema.setConstKeyword(null);
-        schema.setEnumKeyword(new ArrayList<>());
+        schema.setEnumKeyword(null);
         schema.setMultipleOf(null);
         schema.setMaximum(null);
         schema.setExclusiveMaximum(null);

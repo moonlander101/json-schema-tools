@@ -149,7 +149,7 @@ class Schema {
     private Object constKeyword;
 
     @SerializedName("enum")
-    private List<Object> enumKeyword = new ArrayList<>();
+    private List<Object> enumKeyword;
 
     private Double multipleOf;
     private Double maximum;
@@ -634,11 +634,15 @@ class Schema {
     }
 
     public List<Object> getEnumKeyword() {
-        return enumKeyword;
+        return enumKeyword != null ? enumKeyword : new ArrayList<>();
     }
 
     public void setEnumKeyword(List<Object> enumKeyword) {
-        this.enumKeyword = (enumKeyword != null) ? enumKeyword : new ArrayList<>();
+        this.enumKeyword = enumKeyword;
+    }
+
+    public boolean hasEnumKeyword() {
+        return enumKeyword != null;
     }
 
     public Double getMultipleOf() {
@@ -934,8 +938,7 @@ class Schema {
 
             copiedSchema.setType(schema.getType().isEmpty() ? null : new ArrayList<>(schema.getType()));
             copiedSchema.setConstKeyword(deepCopy(schema.getConstKeyword()));
-            copiedSchema.setEnumKeyword(schema.getEnumKeyword() == null ?
-                    null : new ArrayList<>(schema.getEnumKeyword()));
+            copiedSchema.setEnumKeyword(schema.hasEnumKeyword() ? new ArrayList<>(schema.getEnumKeyword()) : null);
 
             copiedSchema.setMultipleOf(schema.getMultipleOf());
             copiedSchema.setMaximum(schema.getMaximum());

@@ -122,7 +122,11 @@ public class JsonSchemaGeneratorTest {
                 {"87_nested_combining_keywords.json", "87_nested_combining_keywords.bal"},
                 {"88_nested_combining_keywords.json", "88_nested_combining_keywords.bal"},
                 {"91_relative_nested_ids_anchor.json", "91_relative_nested_ids_anchor.bal"},
-                {"92_root_ref_without_explicit_type.json", "92_root_ref_without_explicit_type.bal"}
+                {"92_root_ref_without_explicit_type.json", "92_root_ref_without_explicit_type.bal"},
+                {"93_enum_with_empty_array.json", "93_enum_with_empty_array.bal"},
+                {"94_single_mapping_enum.json", "94_single_mapping_enum.bal"},
+                {"95_single_empty_array_enum.json", "95_single_empty_array_enum.bal"},
+                {"96_empty_array_const.json", "96_empty_array_const.bal"}
         };
     }
 

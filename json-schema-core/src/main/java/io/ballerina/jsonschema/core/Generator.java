@@ -62,6 +62,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.CLOSE_BRACES;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CLOSE_BRACKET;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CLOSE_SQUARE_BRACKET;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COLON;
+import static io.ballerina.jsonschema.core.GeneratorUtils.CONST;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COMMA;
 import static io.ballerina.jsonschema.core.GeneratorUtils.COMMENT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CONTAINS;
@@ -74,6 +75,8 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.DEPRECATED;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DOUBLE_QUOTATION;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DUMMY_SCHEME;
 import static io.ballerina.jsonschema.core.GeneratorUtils.EMPTY_ARRAY;
+import static io.ballerina.jsonschema.core.GeneratorUtils.EMPTY_ARRAY_CONSTANT;
+import static io.ballerina.jsonschema.core.GeneratorUtils.EMPTY_ARRAY_CONST_NAME;
 import static io.ballerina.jsonschema.core.GeneratorUtils.EMPTY_RECORD;
 import static io.ballerina.jsonschema.core.GeneratorUtils.EXAMPLES;
 import static io.ballerina.jsonschema.core.GeneratorUtils.EXCLUSIVE_MAXIMUM;
@@ -186,6 +189,7 @@ public class Generator {
     final Map<Schema, String> schemaToTypeMap = new HashMap<>();
 
     private int constCounter = 0;
+    private String emptyArrayConstName;
 
     int getNextConstIndex() {
         return ++this.constCounter;
@@ -266,8 +270,8 @@ public class Generator {
                     this.nodes.put(schemaName, schemaNode);
                 }
             // if the generated type is not added to nodes (from being referenced in another schema), add it.
-            } else if (!this.nodes.containsKey(generatedTypeName)
-                        || generatedTypeName.startsWith(GeneratorUtils.CONST_MAPPING_PREFIX)) {
+            } else if (!this.nodes.containsKey(generatedTypeName) || generatedTypeName.startsWith(
+                    GeneratorUtils.CONST_MAPPING_PREFIX) || generatedTypeName.equals(this.emptyArrayConstName)) {
                 String schemaDefinition = String.format(TYPE_FORMAT, schemaName, generatedTypeName);
                 ModuleMemberDeclarationNode schemaNode = NodeParser.parseModuleMemberDeclaration(schemaDefinition);
                 this.nodes.put(schemaName, schemaNode);
@@ -349,7 +353,8 @@ public class Generator {
                     s -> s.setAnyOf(new ArrayList<>()), uneval);
         }
 
-        BalTypes balTypes = getCommonType(schema.getEnumKeyword(), schema.getConstKeyword(), schema.getType());
+        BalTypes balTypes = getCommonType(schema.getEnumKeyword(), schema.hasEnumKeyword(),
+                schema.getConstKeyword(), schema.getType());
         List<Object> schemaType = balTypes.typeList();
 
         if (schemaType.isEmpty()) {
@@ -396,7 +401,7 @@ public class Generator {
         String typeName = schemaType.stream()
                 .map(element -> {
                     try {
-                        return generateStringRepresentation(element);
+                        return renderSingletonTypeMember(element);
                     } catch (InvalidDataTypeException e) {
                         throw new RuntimeException(e);
                     }
@@ -407,6 +412,9 @@ public class Generator {
         removeMetaDataAndTypeInfo(duplicateSchema);
 
         if (duplicateSchema.equals(new Schema())) {
+            if (shouldDuplicateSingletonConstReference(schema, typeName)) {
+                typeName = typeName + PIPE + typeName;
+            }
             String finalType = processCommonTypeAnnotations(schema, typeName, name, type);
             schemaToTypeMap.put(schema, finalType);
             return finalType;
@@ -435,7 +443,7 @@ public class Generator {
 
         Schema constraintsSchema = (Schema) deepCopy(schema);
         constraintsSchema.setType(new ArrayList<>(typeSet));
-        constraintsSchema.setEnumKeyword(new ArrayList<>());
+        constraintsSchema.setEnumKeyword(null);
         constraintsSchema.setConstKeyword(null);
 
         ArrayList<Object> enumAllOf = new ArrayList<>();
@@ -483,7 +491,7 @@ public class Generator {
     private static void removeMetaDataAndTypeInfo(Schema schema) {
         schema.setType(null);
         schema.setConstKeyword(null);
-        schema.setEnumKeyword(new ArrayList<>());
+        schema.setEnumKeyword(null);
         schema.setIdKeyword(null);
         schema.setSchemaKeyword(null);
         schema.setAnchorKeyword(null);
@@ -1335,9 +1343,6 @@ public class Generator {
             for (Object element : (ArrayList<?>) obj) {
                 result.add(generateStringRepresentation(element));
             }
-            if (result.isEmpty()) {
-                return UNIVERSAL_ARRAY;
-            }
             return OPEN_SQUARE_BRACKET + String.join(COMMA, result) + CLOSE_SQUARE_BRACKET;
         }
         if (obj instanceof Map) {
@@ -1357,6 +1362,13 @@ public class Generator {
             return objName;
         }
         throw new InvalidDataTypeException("Type not supported");
+    }
+
+    private String renderSingletonTypeMember(Object obj) throws InvalidDataTypeException {
+        if (obj instanceof ArrayList<?> array && array.isEmpty()) {
+            return getOrCreateEmptyArrayConstName();
+        }
+        return generateStringRepresentation(obj);
     }
 
     static String getRecordRestType(String name, Object additionalProperties, Object unevaluatedProperties,
@@ -1393,7 +1405,7 @@ public class Generator {
         return convert(schemaObject, fallbackName);
     }
 
-    private static BalTypes getCommonType(List<Object> enumKeyword, Object constKeyword,
+    private static BalTypes getCommonType(List<Object> enumKeyword, boolean hasEnumKeyword, Object constKeyword,
                                           List<String> type) {
         Set<Class<?>> typeList = new LinkedHashSet<>();
 
@@ -1417,10 +1429,19 @@ public class Generator {
         }
 
         if (enumKeyword.isEmpty()) {
+            if (hasEnumKeyword) {
+                return new BalTypes(new ArrayList<>(), false);
+            }
             if (constKeyword == null) {
                 return new BalTypes(new ArrayList<>(typeList), true);
             }
-            if (typeList.contains(constKeyword.getClass())) {
+            Class<?> constClass = constKeyword.getClass();
+            if (Map.class.isAssignableFrom(constClass)) {
+                constClass = Map.class;
+            } else if (ArrayList.class.isAssignableFrom(constClass)) {
+                constClass = ArrayList.class;
+            }
+            if (typeList.contains(constClass)) {
                 return new BalTypes(new ArrayList<>(List.of(constKeyword)), false);
             }
             return new BalTypes(new ArrayList<>(), false);
@@ -1634,6 +1655,25 @@ public class Generator {
         return schema.getAdditionalProperties() == null && schema.getUnevaluatedProperties() != null &&
                 (!schema.getDependentSchemas().isEmpty() || hasNestedPropertyKeywords(schema, baseSchema) ||
                         !schema.getPatternProperties().isEmpty());
+    }
+
+    private String getOrCreateEmptyArrayConstName() {
+        if (this.emptyArrayConstName == null) {
+            this.emptyArrayConstName = resolveNameConflicts(EMPTY_ARRAY_CONST_NAME, this);
+            String constDefinition = String.format(PUBLIC + WHITE_SPACE + CONST + WHITE_SPACE + "%s = %s;",
+                    this.emptyArrayConstName, EMPTY_ARRAY_CONSTANT);
+            this.nodes.put(this.emptyArrayConstName, NodeParser.parseModuleMemberDeclaration(constDefinition));
+        }
+        return this.emptyArrayConstName;
+    }
+
+    private boolean shouldDuplicateSingletonConstReference(Schema schema, String typeName) {
+        if (typeName.contains(PIPE) || (!typeName.startsWith(GeneratorUtils.CONST_MAPPING_PREFIX)
+                && !typeName.equals(this.emptyArrayConstName))) {
+            return false;
+        }
+        return (schema.getConstKeyword() != null && schema.getEnumKeyword().isEmpty()) ||
+                schema.getEnumKeyword().size() == 1;
     }
 
     private static boolean hasCombiningKeywords(Schema schema) {
