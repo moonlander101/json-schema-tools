@@ -322,8 +322,7 @@ public class Generator {
             return schemaToTypeMap.get(schema);
         }
 
-        if (schema.getAdditionalProperties() == null && schema.getUnevaluatedProperties() != null &&
-                hasNestedPropertyKeywords(schema, true)) {
+        if (shouldHoistUnevaluatedProperties(schema, true)) {
             uneval = true;
         }
 
@@ -454,8 +453,13 @@ public class Generator {
         siblingSchema.setRefKeyword(null);
         siblingSchema.setDynamicRefKeyword(null);
         stripOuterMetadataAndCoreKeywords(siblingSchema);
+        siblingSchema.setUnevaluatedItems(null);
+        siblingSchema.setUnevaluatedProperties(null);
 
-        if (siblingSchema.equals(new Schema())) {
+        Object outerUnevaluatedItems = schema.getUnevaluatedItems();
+        Object outerUnevaluatedProperties = schema.getUnevaluatedProperties();
+
+        if (siblingSchema.equals(new Schema()) && outerUnevaluatedItems == null && outerUnevaluatedProperties == null) {
             return true;
         }
 
@@ -464,7 +468,15 @@ public class Generator {
         refOnlySchema.setDynamicRefKeyword(schema.getDynamicRefKeyword());
 
         stripReferenceWrapperToMetadataOnly(schema);
-        schema.setAllOf(new ArrayList<>(List.of(refOnlySchema, siblingSchema)));
+        schema.setUnevaluatedItems(outerUnevaluatedItems);
+        schema.setUnevaluatedProperties(outerUnevaluatedProperties);
+
+        List<Object> rewrittenAllOf = new ArrayList<>();
+        rewrittenAllOf.add(refOnlySchema);
+        if (!siblingSchema.equals(new Schema())) {
+            rewrittenAllOf.add(siblingSchema);
+        }
+        schema.setAllOf(rewrittenAllOf);
         return false;
     }
 
@@ -516,7 +528,8 @@ public class Generator {
             do {
                 elementName = name + combType + (++count);
             } while (this.nodes.containsKey(elementName));
-            allOfMembers.add(new GeneratorUtils.ContextualTypeMember(elementName, convert(obj, elementName)));
+            allOfMembers.add(new GeneratorUtils.ContextualTypeMember(elementName,
+                    convert(obj, elementName, shouldHoistUnevaluatedProperties(obj, false))));
         }
         List<String> allOfElements = materializeContextualTypeAliases(allOfMembers, this);
 
@@ -1107,7 +1120,7 @@ public class Generator {
             objectAnnotations.add(additionalPropsAnnotation);
         }
 
-        if (uneval) {
+        if (uneval && unevaluatedProperties != null) {
             String unevalPropName = resolveNameConflicts(type + UNEVALUATED_PROPS, this);
             String unevalAnnotation = String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, UNEVALUATED_PROPS,
                     VALUE + COLON + resolveTypeNameForTypedesc(unevalPropName, restType, this));
@@ -1165,19 +1178,23 @@ public class Generator {
                     VALUE + COLON + patternElementsArray);
             objectAnnotations.add(patternAnnotation);
 
-            // Handle repeating data types.
-            for (String repeatingType : restType.split("\\|")) {
-                patternTypes.add(repeatingType.trim());
-            }
-            if (patternTypes.contains(JSON)) {
-                patternTypes.clear();
-                patternTypes.add(JSON);
-            }
-            if (patternTypes.contains(NEVER) && patternTypes.size() > 1) {
-                patternTypes.remove(NEVER);
-            }
+            if (additionalProperties == null) {
+                restType = JSON;
+            } else {
+                // Handle repeating data types.
+                for (String repeatingType : restType.split("\\|")) {
+                    patternTypes.add(repeatingType.trim());
+                }
+                if (patternTypes.contains(JSON)) {
+                    patternTypes.clear();
+                    patternTypes.add(JSON);
+                }
+                if (patternTypes.contains(NEVER) && patternTypes.size() > 1) {
+                    patternTypes.remove(NEVER);
+                }
 
-            restType = String.join(PIPE, patternTypes);
+                restType = String.join(PIPE, patternTypes);
+            }
         }
 
         if (maxProperties != null || minProperties != null || propertyNames != null) {
@@ -1229,10 +1246,13 @@ public class Generator {
         }
 
         // Add dependent schema fields that are not specified in the properties' keyword.
-        if ((!dependentSchemas.isEmpty()) && (!restType.equals(NEVER))) {
+        if (!dependentSchemas.isEmpty()) {
             String finalRestType = restType;
             dependentSchemas.forEach((key, value) -> {
                 if (!recordFields.containsKey(key)) {
+                    if (finalRestType.equals(NEVER)) {
+                        return;
+                    }
                     recordFields.put(key, new GeneratorUtils.RecordField(finalRestType, false));
                 }
                 try {
@@ -1551,7 +1571,9 @@ public class Generator {
         assert schemaObject instanceof Schema;
         Schema schema = (Schema) schemaObject;
 
-        if (!baseSchema && (!schema.getProperties().isEmpty() || !schema.getPatternProperties().isEmpty())) {
+        if (!baseSchema && (!schema.getProperties().isEmpty() || !schema.getPatternProperties().isEmpty() ||
+                schema.getAdditionalProperties() != null || schema.getUnevaluatedProperties() != null ||
+                !schema.getDependentSchemas().isEmpty())) {
             return true;
         }
 
@@ -1594,7 +1616,24 @@ public class Generator {
             return true;
         }
 
+        if (!schema.getDependentSchemas().isEmpty()) {
+            for (Object obj : schema.getDependentSchemas().values()) {
+                if (hasNestedPropertyKeywords(obj, false)) {
+                    return true;
+                }
+            }
+        }
+
         return elseKeyword != null && hasNestedPropertyKeywords(elseKeyword, false);
+    }
+
+    private boolean shouldHoistUnevaluatedProperties(Object schemaObject, boolean baseSchema) {
+        if (!(schemaObject instanceof Schema schema)) {
+            return false;
+        }
+        return schema.getAdditionalProperties() == null && schema.getUnevaluatedProperties() != null &&
+                (!schema.getDependentSchemas().isEmpty() || hasNestedPropertyKeywords(schema, baseSchema) ||
+                        !schema.getPatternProperties().isEmpty());
     }
 
     private static boolean hasCombiningKeywords(Schema schema) {

@@ -293,6 +293,31 @@ public class JsonSchemaGeneratorTest {
     }
 
     @Test
+    public void testDependentSchemasHoistsUnevaluatedProperties() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "properties": { "foo": { "type": "string" } },
+                  "dependentSchemas": {
+                    "foo": { "properties": { "bar": { "const": "bar" } }, "required": ["bar"] }
+                  },
+                  "unevaluatedProperties": false
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:DependentSchema"),
+                "Expected dependentSchemas annotations to be preserved");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected dependentSchemas to force hoisting of unevaluatedProperties");
+        Assert.assertTrue(result.getTypes().contains("json...;"),
+                "Expected the structural record rest descriptor to remain open for dependentSchemas");
+    }
+
+    @Test
     public void testRefWithSiblingKeywordsIsCombined() throws Exception {
         String jsonSchema = """
                 {
@@ -318,6 +343,29 @@ public class JsonSchemaGeneratorTest {
                 "Expected sibling constraints to be preserved alongside the referenced schema");
         Assert.assertTrue(result.getTypes().contains("Foo foo?;"),
                 "Expected generated property types to use PascalCase named types");
+    }
+
+    @Test
+    public void testRefSiblingsKeepUnevaluatedPropertiesAtWrapperLevel() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "$ref": "#/$defs/bar",
+                  "properties": { "foo": { "type": "string" } },
+                  "unevaluatedProperties": false,
+                  "$defs": { "bar": { "properties": { "bar": { "type": "string" } } } }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected unevaluatedProperties to be preserved on the rewritten wrapper");
+        Assert.assertFalse(result.getTypes().contains(
+                "@jsondata:UnevaluatedProperties {\n    value: never\n}\npublic type SchemaAllOf2Object"),
+                "Expected the sibling branch to avoid carrying the unevaluatedProperties annotation itself");
     }
 
     @Test
@@ -369,4 +417,140 @@ public class JsonSchemaGeneratorTest {
         Assert.assertTrue(result.getTypes().contains("[json, (SchemaItem1|SchemaRestItem)...]"),
                 "Expected merged array rest unions to reuse stable aliases");
     }
+
+    @Test
+    public void testNotAnnotationAddsJsonDataImport() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "not": { "type": "integer" }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("import ballerina/data.jsondata;"),
+                "Expected @jsondata:Not usage to add the jsondata import");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:Not"),
+                "Expected the generated type to include the Not annotation");
+    }
+
+    @Test
+    public void testAdditionalPropertiesTrueAddsExplicitAnnotation() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "additionalProperties": true
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("import ballerina/data.jsondata;"),
+                "Expected explicit additionalProperties: true to add the jsondata import");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:AdditionalProperties"),
+                "Expected explicit additionalProperties: true to add the annotation");
+        Assert.assertTrue(result.getTypes().contains("value: json"),
+                "Expected explicit additionalProperties: true to be recorded as json");
+    }
+
+    @Test
+    public void testPatternPropertiesDoesNotInferAdditionalPropertiesAnnotation() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "properties": { "foo": { "type": "string" } },
+                  "allOf": [{ "patternProperties": { "^bar": { "type": "string" } } }],
+                  "unevaluatedProperties": false
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertFalse(result.getTypes().contains("@jsondata:AdditionalProperties"),
+"Expected patternProperties without explicit additionalProperties to avoid synthesizing the annotation");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:PatternProperties"),
+"Expected patternProperties annotation to still be present");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected hoisted unevaluatedProperties annotation to still be present");
+    }
+
+    @Test
+    public void testPatternPropertiesWithoutAdditionalPropertiesUsesJsonRestApproximation() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "patternProperties": { "^foo": { "type": "string" } },
+                  "unevaluatedProperties": false
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:PatternProperties"),
+                "Expected patternProperties annotation to be present");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected patternProperties with unevaluatedProperties to preserve the annotation");
+        Assert.assertTrue(result.getTypes().contains("json...;"),
+                "Expected patternProperties without explicit additionalProperties to use json rest approximation");
+        Assert.assertFalse(result.getTypes().contains("string...;"),
+                "Expected the structural approximation to avoid implying all extra fields are strings");
+    }
+
+    @Test
+    public void testNestedAdditionalPropertiesTriggersUnevaluatedPropertiesHoist() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "properties": { "foo": { "type": "string" } },
+                  "allOf": [{ "additionalProperties": true }],
+                  "unevaluatedProperties": false
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected nested additionalProperties to trigger hoisting of unevaluatedProperties");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:AllOf"),
+                "Expected the generated type to remain an allOf composition");
+    }
+
+    @Test
+    public void testNestedUnevaluatedPropertiesTriggersHoistWithoutTypedRestField() throws Exception {
+        String jsonSchema = """
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "properties": { "foo": { "type": "string" } },
+                  "allOf": [{ "unevaluatedProperties": true }],
+                  "unevaluatedProperties": { "type": "string", "maxLength": 2 }
+                }
+                """;
+
+        Object schema = SchemaUtils.parseJsonSchema(jsonSchema);
+        Response result = new Generator().convertBaseSchema(new ArrayList<>() {{ add(schema); }});
+
+        Assert.assertTrue(result.getDiagnostics().isEmpty(), "Diagnostics should be empty");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:AllOf"),
+                "Expected the generated type to remain an allOf composition");
+        Assert.assertTrue(result.getTypes().contains("@jsondata:UnevaluatedProperties"),
+                "Expected explicit unevaluatedProperties to be preserved as annotations");
+        Assert.assertFalse(result.getTypes().contains("SchemaMainTypeObjectUnevaluatedProperties...;"),
+                "Expected outer unevaluatedProperties to avoid a typed rest-field approximation");
+        Assert.assertTrue(result.getTypes().split(
+                "@jsondata:UnevaluatedProperties", -1).length > 2,
+                "Expected both outer and nested unevaluatedProperties annotations to be preserved");
+    }
+
 }
