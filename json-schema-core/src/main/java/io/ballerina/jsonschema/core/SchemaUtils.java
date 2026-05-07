@@ -23,6 +23,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.ToNumberPolicy;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -73,7 +74,7 @@ public class SchemaUtils {
         }
 
         if (schema.getIdKeyword() != null) {
-            baseUri = baseUri.resolve(URI.create(schema.getIdKeyword()));
+            baseUri = resolveSchemaUri(baseUri, schema.getIdKeyword());
             if (idToSchemaMap.containsKey(baseUri)) {
                 throw new RuntimeException("Schema id \"" + schema.getIdKeyword() + "\" is not unique");
             }
@@ -81,8 +82,7 @@ public class SchemaUtils {
         }
         if (schema.getAnchorKeyword() != null) {
             // TODO: validate the anchor expression
-            URI uri = URI.create("#" + schema.getAnchorKeyword());
-            URI resolvedUri = baseUri.resolve(uri);
+            URI resolvedUri = resolveSchemaUri(baseUri, "#" + schema.getAnchorKeyword());
             if (idToSchemaMap.containsKey(resolvedUri)) {
                 throw new RuntimeException("Schema anchor \"" + schema.getAnchorKeyword() + "\" is not unique");
             }
@@ -90,8 +90,7 @@ public class SchemaUtils {
         }
         if (schema.getDynamicAnchorKeyword() != null) {
             // TODO: validate the anchor expression
-            URI uri = URI.create("#" + schema.getDynamicAnchorKeyword());
-            URI resolvedUri = baseUri.resolve(uri);
+            URI resolvedUri = resolveSchemaUri(baseUri, "#" + schema.getDynamicAnchorKeyword());
             if (idToSchemaMap.containsKey(resolvedUri)) {
                 throw new RuntimeException("Schema anchor \"" + schema.getDynamicAnchorKeyword() + "\" is not unique");
             }
@@ -196,7 +195,7 @@ public class SchemaUtils {
 
         // Change the base URI for the sub schemas
         if (schema.getIdKeyword() != null) {
-            baseUri = baseUri.resolve(URI.create(schema.getIdKeyword()));
+            baseUri = resolveSchemaUri(baseUri, schema.getIdKeyword());
             schema.setIdKeyword(baseUri.toString());
         }
 
@@ -206,8 +205,7 @@ public class SchemaUtils {
             if (refKeyword.equals("#")) {
                 schema.setRefKeyword(baseUri.toString());
             } else {
-                URI uri = URI.create(schema.getRefKeyword());
-                schema.setRefKeyword(baseUri.resolve(uri).toString());
+                schema.setRefKeyword(resolveSchemaUri(baseUri, schema.getRefKeyword()).toString());
             }
         }
 
@@ -216,8 +214,7 @@ public class SchemaUtils {
             if (dynamicRefKeyword.equals("#")) {
                 schema.setDynamicRefKeyword(baseUri.toString());
             } else {
-                URI uri = URI.create(schema.getDynamicRefKeyword());
-                schema.setDynamicRefKeyword(baseUri.resolve(uri).toString());
+                schema.setDynamicRefKeyword(resolveSchemaUri(baseUri, schema.getDynamicRefKeyword()).toString());
             }
         }
 
@@ -313,36 +310,103 @@ public class SchemaUtils {
     }
 
     public static Object getSchemaById(Map<URI, Schema> idToSchemaMap, String uri) throws Exception {
-        URI id = URI.create(uri);
-        if (idToSchemaMap.containsKey(id)) {
-            return idToSchemaMap.get(id);
+        URI targetUri = URI.create(uri);
+        if (idToSchemaMap.containsKey(targetUri)) {
+            return idToSchemaMap.get(targetUri);
         }
 
-        URI nearestUri = URI.create("");
-
-        for (URI key : idToSchemaMap.keySet()) {
-            if (uri.startsWith(key.toString()) && key.toString().length() > nearestUri.toString().length()) {
-                nearestUri = key;
-            }
-        }
-
-        if (nearestUri.equals(URI.create(""))) {
+        URI documentUri = removeFragment(targetUri);
+        Schema schema = idToSchemaMap.get(documentUri);
+        if (schema == null) {
             throw new RuntimeException("No matching schema found for " + uri);
         }
 
-        Schema schema = idToSchemaMap.get(nearestUri);
-
-        String basePath = nearestUri.toString();
-        String relativePath = uri.substring(basePath.length());
-
-        if (!relativePath.startsWith("#/")) {
-            throw new RuntimeException("Invalid path: " + basePath);
+        String fragment = decodeFragment(targetUri);
+        if (fragment == null || fragment.isEmpty()) {
+            return schema;
+        }
+        if (!fragment.startsWith("/")) {
+            URI anchorUri = URI.create(documentUri.toString() + "#" + fragment);
+            if (idToSchemaMap.containsKey(anchorUri)) {
+                return idToSchemaMap.get(anchorUri);
+            }
+            throw new RuntimeException("No matching schema found for " + uri);
         }
 
-        relativePath = relativePath.substring(2);
-        ArrayList<String> pathList = new ArrayList<>(Arrays.asList(relativePath.split("/")));
-
+        ArrayList<String> pathList = decodeJsonPointerTokens(fragment.substring(1));
         return getSchemaByKeyword(schema, pathList);
+    }
+
+    private static URI resolveSchemaUri(URI baseUri, String reference) {
+        URI candidate = URI.create(reference);
+        if (candidate.isAbsolute()) {
+            return candidate;
+        }
+        if (baseUri.isOpaque() && reference.startsWith("#")) {
+            return URI.create(removeFragment(baseUri).toString() + reference);
+        }
+
+        URI resolved = baseUri.resolve(candidate);
+        if ("file".equals(baseUri.getScheme()) && baseUri.getAuthority() == null && resolved.getAuthority() == null) {
+            String resolvedString = resolved.toString();
+            if (resolvedString.startsWith("file:/") && !resolvedString.startsWith("file:///")) {
+                return URI.create("file:///" + resolvedString.substring("file:/".length()));
+            }
+        }
+        return resolved;
+    }
+
+    private static URI removeFragment(URI uri) {
+        if (uri.getRawFragment() == null) {
+            return uri;
+        }
+        return URI.create(uri.toString().substring(0, uri.toString().indexOf('#')));
+    }
+
+    private static String decodeFragment(URI uri) {
+        String rawFragment = uri.getRawFragment();
+        if (rawFragment == null) {
+            return null;
+        }
+        return decodeUriComponent(rawFragment);
+    }
+
+    private static ArrayList<String> decodeJsonPointerTokens(String pointerPath) {
+        ArrayList<String> pathList = new ArrayList<>(Arrays.asList(pointerPath.split("/")));
+        for (int i = 0; i < pathList.size(); i++) {
+            pathList.set(i, pathList.get(i).replace("~1", "/").replace("~0", "~"));
+        }
+        return pathList;
+    }
+
+    private static String decodeUriComponent(String value) {
+        byte[] buffer = new byte[value.length()];
+        int bufferIndex = 0;
+        StringBuilder decoded = new StringBuilder();
+
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (current != '%') {
+                if (bufferIndex > 0) {
+                    decoded.append(new String(buffer, 0, bufferIndex, StandardCharsets.UTF_8));
+                    bufferIndex = 0;
+                }
+                decoded.append(current);
+                continue;
+            }
+
+            if (i + 2 >= value.length()) {
+                throw new IllegalArgumentException("Invalid percent-encoding in URI component: " + value);
+            }
+            int decodedByte = Integer.parseInt(value.substring(i + 1, i + 3), 16);
+            buffer[bufferIndex++] = (byte) decodedByte;
+            i += 2;
+        }
+
+        if (bufferIndex > 0) {
+            decoded.append(new String(buffer, 0, bufferIndex, StandardCharsets.UTF_8));
+        }
+        return decoded.toString();
     }
 
     public static Object getSchemaByKeyword(Object schemaObject, ArrayList<String> pathList) throws Exception {

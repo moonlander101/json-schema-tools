@@ -130,7 +130,10 @@ public class JsonSchemaGeneratorTest {
                 {"97_pattern_properties_singletons.json", "97_pattern_properties_singletons.bal"},
                 {"98_property_names_singletons.json", "98_property_names_singletons.bal"},
                 {"99_null_const.json", "99_null_const.bal"},
-                {"100_array_items_true.json", "100_array_items_true.bal"}
+                {"100_array_items_true.json", "100_array_items_true.bal"},
+                {"101_json_pointer_escapes.json", "101_json_pointer_escapes.bal"},
+                {"102_urn_ref_with_pointer.json", "102_urn_ref_with_pointer.bal"},
+                {"103_urn_local_fragment_ref.json", "103_urn_local_fragment_ref.bal"}
         };
     }
 
