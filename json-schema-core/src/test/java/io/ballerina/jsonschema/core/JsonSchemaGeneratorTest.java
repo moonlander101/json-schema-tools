@@ -126,7 +126,10 @@ public class JsonSchemaGeneratorTest {
                 {"93_enum_with_empty_array.json", "93_enum_with_empty_array.bal"},
                 {"94_single_mapping_enum.json", "94_single_mapping_enum.bal"},
                 {"95_single_empty_array_enum.json", "95_single_empty_array_enum.bal"},
-                {"96_empty_array_const.json", "96_empty_array_const.bal"}
+                {"96_empty_array_const.json", "96_empty_array_const.bal"},
+                {"97_pattern_properties_singletons.json", "97_pattern_properties_singletons.bal"},
+                {"98_property_names_singletons.json", "98_property_names_singletons.bal"},
+                {"99_null_const.json", "99_null_const.bal"}
         };
     }
 

@@ -36,6 +36,9 @@ import java.util.Map;
  * @since 0.1.0
  */
 public class SchemaDeserializers {
+    static class RawSchema extends Schema {
+    }
+
     static class ListSchemaDeserializer implements JsonDeserializer<List<Object>> {
         @Override
         public List<Object> deserialize(JsonElement jsonElement, Type type,
@@ -101,6 +104,18 @@ public class SchemaDeserializers {
                 return jsonDeserializationContext.deserialize(jsonElement, Schema.class);
             }
             throw new JsonParseException("Expected a boolean or an object");
+        }
+    }
+
+    static class SchemaObjectDeserializer implements JsonDeserializer<Schema> {
+        @Override
+        public Schema deserialize(JsonElement jsonElement, Type type,
+                                  JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
+            Schema schema = jsonDeserializationContext.deserialize(jsonElement, RawSchema.class);
+            if (jsonElement.isJsonObject() && jsonElement.getAsJsonObject().has("const")) {
+                schema.markConstKeywordPresent();
+            }
+            return schema;
         }
     }
 

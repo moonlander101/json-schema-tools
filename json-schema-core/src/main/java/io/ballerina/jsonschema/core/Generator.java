@@ -158,6 +158,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.materializeContextualT
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRecordFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.processRequiredFields;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveConstMapping;
+import static io.ballerina.jsonschema.core.GeneratorUtils.resolveAnnotationValueTypeName;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveNameConflicts;
 import static io.ballerina.jsonschema.core.GeneratorUtils.resolveTypeNameForTypedesc;
 import static io.ballerina.jsonschema.core.GeneratorUtils.stripOuterMetadataAndCoreKeywords;
@@ -354,7 +355,7 @@ public class Generator {
         }
 
         BalTypes balTypes = getCommonType(schema.getEnumKeyword(), schema.hasEnumKeyword(),
-                schema.getConstKeyword(), schema.getType());
+                schema.getConstKeyword(), schema.hasConstKeyword(), schema.getType());
         List<Object> schemaType = balTypes.typeList();
 
         if (schemaType.isEmpty()) {
@@ -439,12 +440,14 @@ public class Generator {
         Schema enumSchema = new Schema();
         enumSchema.setType(new ArrayList<>(schema.getType()));
         enumSchema.setEnumKeyword(schema.getEnumKeyword());
-        enumSchema.setConstKeyword(schema.getConstKeyword());
+        if (schema.hasConstKeyword()) {
+            enumSchema.setConstKeyword(schema.getConstKeyword());
+        }
 
         Schema constraintsSchema = (Schema) deepCopy(schema);
         constraintsSchema.setType(new ArrayList<>(typeSet));
         constraintsSchema.setEnumKeyword(null);
-        constraintsSchema.setConstKeyword(null);
+        constraintsSchema.clearConstKeyword();
 
         ArrayList<Object> enumAllOf = new ArrayList<>();
         enumAllOf.add(enumSchema);
@@ -490,7 +493,7 @@ public class Generator {
 
     private static void removeMetaDataAndTypeInfo(Schema schema) {
         schema.setType(null);
-        schema.setConstKeyword(null);
+        schema.clearConstKeyword();
         schema.setEnumKeyword(null);
         schema.setIdKeyword(null);
         schema.setSchemaKeyword(null);
@@ -560,14 +563,14 @@ public class Generator {
                 String convertedType = this.convert(savedUnevaluatedItems, itemsTypeName);
                 hoistedAnnotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE,
                         UNEVALUATED_ITEMS_ANNOT,
-                        VALUE + COLON + resolveTypeNameForTypedesc(itemsTypeName, convertedType, this)));
+                        VALUE + COLON + resolveAnnotationValueTypeName(itemsTypeName, convertedType, this)));
             }
             if (savedUnevaluatedProperties != null) {
                 String propsTypeName = resolveNameConflicts(name + UNEVALUATED_PROPS, this);
                 String convertedType = this.convert(savedUnevaluatedProperties, propsTypeName);
                 hoistedAnnotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE,
                         UNEVALUATED_PROPS,
-                        VALUE + COLON + resolveTypeNameForTypedesc(propsTypeName, convertedType, this)));
+                        VALUE + COLON + resolveAnnotationValueTypeName(propsTypeName, convertedType, this)));
             }
         }
 
@@ -683,7 +686,7 @@ public class Generator {
         if (schema.getNot() != null) {
             addJsonDataImport();
             annotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, NOT,
-                    VALUE + COLON + resolveTypeNameForTypedesc(name + NOT,
+                    VALUE + COLON + resolveAnnotationValueTypeName(name + NOT,
                             this.convert(schema.getNot(), name + NOT), this)));
         }
 
@@ -881,7 +884,7 @@ public class Generator {
                 String contentSchemaName = type + convertToPascalCase(CONTENT_SCHEMA);
                 String contentSchemaType = this.convert(contentSchema, contentSchemaName);
                 annotationParts.add(CONTENT_SCHEMA + COLON +
-                        resolveTypeNameForTypedesc(contentSchemaName, contentSchemaType, this));
+                        resolveAnnotationValueTypeName(contentSchemaName, contentSchemaType, this));
             }
 
             annotations.add(String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, STRING_ENCODING,
@@ -918,7 +921,7 @@ public class Generator {
                 Object item = prefixItems.get(i);
                 String convertedItem = this.convert(item, type + ITEM_SUFFIX + i);
                 convertedPrefixItems.add(
-                        resolveTypeNameForTypedesc(type + ITEM_SUFFIX + i, convertedItem, this));
+                        resolveAnnotationValueTypeName(type + ITEM_SUFFIX + i, convertedItem, this));
             }
         }
 
@@ -1039,7 +1042,7 @@ public class Generator {
             String customTypeName = type + UNEVALUATED_ITEMS_SUFFIX;
             String typeName = this.convert(unevaluatedItems, customTypeName);
             annotationParts.add(UNEVALUATED_ITEMS + COLON + WHITE_SPACE +
-                    resolveTypeNameForTypedesc(customTypeName, typeName, this));
+                    resolveAnnotationValueTypeName(customTypeName, typeName, this));
         }
 
         if (annotationParts.isEmpty()) {
@@ -1131,7 +1134,7 @@ public class Generator {
         if (uneval && unevaluatedProperties != null) {
             String unevalPropName = resolveNameConflicts(type + UNEVALUATED_PROPS, this);
             String unevalAnnotation = String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, UNEVALUATED_PROPS,
-                    VALUE + COLON + resolveTypeNameForTypedesc(unevalPropName, restType, this));
+                    VALUE + COLON + resolveAnnotationValueTypeName(unevalPropName, restType, this));
             objectAnnotations.add(unevalAnnotation);
             restType = JSON;
         }
@@ -1156,7 +1159,7 @@ public class Generator {
                 Object value = entry.getValue();
 
                 String typeName = elementName + "Type";
-                String generatedType = resolveTypeNameForTypedesc(typeName,
+                String generatedType = resolveAnnotationValueTypeName(typeName,
                         this.convert(value, resolveNameConflicts(typeName, this)), this);
 
                 String recordObject = String.format(PATTERN_FORMAT, PATTERN_RECORD,
@@ -1171,7 +1174,7 @@ public class Generator {
 
             if (additionalProperties != null) {
                 String resolvedRestType =
-                        resolveTypeNameForTypedesc(REST_TYPE, restType, this);
+                        resolveAnnotationValueTypeName(REST_TYPE, restType, this);
 
                 String restTypeAnnotation = String.format(ANNOTATION_FORMAT,
                         ANNOTATION_MODULE, ADDITIONAL_PROPS,
@@ -1215,9 +1218,9 @@ public class Generator {
             if (propertyNames != null) {
                 if (propertyNames instanceof Schema propertyNamesSchema) {
                     propertyNamesSchema.setType(new ArrayList<>(List.of("string")));
+                    String propertyNamesType = this.convert(propertyNamesSchema, type + PROPERTY_NAMES_SUFFIX);
                     objectProperties.add(PROPERTY_NAMES + ": " +
-                            this.convert(propertyNamesSchema, type +
-                                    PROPERTY_NAMES_SUFFIX));
+                            resolveAnnotationValueTypeName(type + PROPERTY_NAMES_SUFFIX, propertyNamesType, this));
                 } else {
                     objectProperties.add(PROPERTY_NAMES + ": " + STRING);
                 }
@@ -1271,7 +1274,7 @@ public class Generator {
 
                     if (!dependentSchemaType.equals(schemaName) && !isPrimitiveBalType(dependentSchemaType)) {
                         dependentSchemaType =
-                                resolveTypeNameForTypedesc(schemaName, dependentSchemaType, this);
+                                resolveAnnotationValueTypeName(schemaName, dependentSchemaType, this);
                     }
 
                     recordFields.get(key).setDependentSchemaType(dependentSchemaType);
@@ -1406,7 +1409,7 @@ public class Generator {
     }
 
     private static BalTypes getCommonType(List<Object> enumKeyword, boolean hasEnumKeyword, Object constKeyword,
-                                          List<String> type) {
+                                          boolean hasConstKeyword, List<String> type) {
         Set<Class<?>> typeList = new LinkedHashSet<>();
 
         if (type == null || type.isEmpty()) {
@@ -1432,8 +1435,16 @@ public class Generator {
             if (hasEnumKeyword) {
                 return new BalTypes(new ArrayList<>(), false);
             }
-            if (constKeyword == null) {
+            if (!hasConstKeyword) {
                 return new BalTypes(new ArrayList<>(typeList), true);
+            }
+            if (constKeyword == null) {
+                if (!typeList.contains(null)) {
+                    return new BalTypes(new ArrayList<>(), false);
+                }
+                ArrayList<Object> nullSingleton = new ArrayList<>();
+                nullSingleton.add(null);
+                return new BalTypes(nullSingleton, false);
             }
             Class<?> constClass = constKeyword.getClass();
             if (Map.class.isAssignableFrom(constClass)) {

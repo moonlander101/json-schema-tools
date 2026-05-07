@@ -39,7 +39,10 @@ public class SchemaUtils {
     private static final List<String> SUPPORTED_DRAFTS = List.of(DRAFT_2020_12);
 
     public static Object parseJsonSchema(String jsonString) throws Exception {
-        Gson gson = new GsonBuilder().setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE).create();
+        Gson gson = new GsonBuilder()
+                .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+                .registerTypeAdapter(Schema.class, new SchemaDeserializers.SchemaObjectDeserializer())
+                .create();
         jsonString = jsonString.trim();
 
         if (jsonString.isEmpty()) {

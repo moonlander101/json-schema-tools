@@ -148,6 +148,8 @@ class Schema {
     @SerializedName("const")
     private Object constKeyword;
 
+    private boolean hasConstKeyword;
+
     @SerializedName("enum")
     private List<Object> enumKeyword;
 
@@ -631,6 +633,20 @@ class Schema {
 
     public void setConstKeyword(Object constKeyword) {
         this.constKeyword = constKeyword;
+        this.hasConstKeyword = true;
+    }
+
+    public void markConstKeywordPresent() {
+        this.hasConstKeyword = true;
+    }
+
+    public void clearConstKeyword() {
+        this.constKeyword = null;
+        this.hasConstKeyword = false;
+    }
+
+    public boolean hasConstKeyword() {
+        return hasConstKeyword;
     }
 
     public List<Object> getEnumKeyword() {
@@ -937,7 +953,9 @@ class Schema {
             copiedSchema.setUnevaluatedProperties(deepCopy(schema.getUnevaluatedProperties()));
 
             copiedSchema.setType(schema.getType().isEmpty() ? null : new ArrayList<>(schema.getType()));
-            copiedSchema.setConstKeyword(deepCopy(schema.getConstKeyword()));
+            if (schema.hasConstKeyword()) {
+                copiedSchema.setConstKeyword(deepCopy(schema.getConstKeyword()));
+            }
             copiedSchema.setEnumKeyword(schema.hasEnumKeyword() ? new ArrayList<>(schema.getEnumKeyword()) : null);
 
             copiedSchema.setMultipleOf(schema.getMultipleOf());

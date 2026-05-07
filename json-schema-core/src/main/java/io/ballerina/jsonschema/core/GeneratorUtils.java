@@ -314,6 +314,17 @@ public class GeneratorUtils {
         return newType;
     }
 
+    static String resolveAnnotationValueTypeName(String name, String typeName, Generator generator) {
+        if (isPrimitiveBalType(typeName) || typeName.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            return typeName;
+        }
+        String newType = resolveNameConflicts(name, generator);
+        String typeDeclaration = String.format(TYPE_FORMAT, newType, typeName);
+        ModuleMemberDeclarationNode moduleNode = NodeParser.parseModuleMemberDeclaration(typeDeclaration);
+        generator.nodes.put(newType, moduleNode);
+        return newType;
+    }
+
     static List<String> materializeContextualTypeAliases(List<ContextualTypeMember> members, Generator generator) {
         Map<String, Integer> typeCounts = new LinkedHashMap<>();
         for (ContextualTypeMember member : members) {
@@ -608,7 +619,7 @@ public class GeneratorUtils {
         schema.setUnevaluatedItems(null);
         schema.setUnevaluatedProperties(null);
         schema.setType(new ArrayList<>());
-        schema.setConstKeyword(null);
+        schema.clearConstKeyword();
         schema.setEnumKeyword(null);
         schema.setMultipleOf(null);
         schema.setMaximum(null);
