@@ -129,7 +129,8 @@ public class JsonSchemaGeneratorTest {
                 {"96_empty_array_const.json", "96_empty_array_const.bal"},
                 {"97_pattern_properties_singletons.json", "97_pattern_properties_singletons.bal"},
                 {"98_property_names_singletons.json", "98_property_names_singletons.bal"},
-                {"99_null_const.json", "99_null_const.bal"}
+                {"99_null_const.json", "99_null_const.bal"},
+                {"100_array_items_true.json", "100_array_items_true.bal"}
         };
     }
 

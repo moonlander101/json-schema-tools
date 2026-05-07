@@ -113,6 +113,7 @@ public class GeneratorUtils {
     public static final String PATTERN = "pattern";
 
     public static final String PREFIX_ITEMS = "prefixItems";
+    public static final String ITEMS = "items";
     public static final String MIN_ITEMS = "minItems";
     public static final String MAX_ITEMS = "maxItems";
     public static final String UNIQUE_ITEMS = "uniqueItems";

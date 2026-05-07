@@ -85,6 +85,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.FLOAT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.FORMAT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.IMPORT;
 import static io.ballerina.jsonschema.core.GeneratorUtils.INTEGER;
+import static io.ballerina.jsonschema.core.GeneratorUtils.ITEMS;
 import static io.ballerina.jsonschema.core.GeneratorUtils.ITEM_SUFFIX;
 import static io.ballerina.jsonschema.core.GeneratorUtils.JSON;
 import static io.ballerina.jsonschema.core.GeneratorUtils.MAXIMUM;
@@ -1009,6 +1010,11 @@ public class Generator {
         if (!convertedPrefixItems.isEmpty()) {
             annotationParts.add(PREFIX_ITEMS + COLON + WHITE_SPACE + OPEN_SQUARE_BRACKET +
                     String.join(COMMA, convertedPrefixItems) + CLOSE_SQUARE_BRACKET);
+        }
+
+        // resolves ambiguity between default behaviour and explicit declaration of items : true
+        if (Boolean.TRUE.equals(items)) {
+            annotationParts.add(ITEMS + COLON + WHITE_SPACE + JSON);
         }
 
         addIfNotNull(annotationParts, MIN_ITEMS, minItems);
