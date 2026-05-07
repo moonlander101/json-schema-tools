@@ -318,10 +318,7 @@ public class Generator {
                 return resolveReferencedType(obj, name);
             }
         } else if (schema.getDynamicRefKeyword() != null) {
-            if (rewriteReferenceWithSiblingConstraints(schema)) {
-                Object obj = getSchemaById(idToSchemaMap, schema.getDynamicRefKeyword());
-                return resolveReferencedType(obj, name);
-            }
+            throw new RuntimeException("$dynamicRef resolution is not supported for type generation");
         }
 
         if (schemaToTypeMap.containsKey(schema)) {
@@ -993,12 +990,12 @@ public class Generator {
                 }
                 List<String> restMembers = new ArrayList<>(
                         convertedPrefixItems.subList((int) startPosition, convertedPrefixItems.size()));
-                if (!restItem.equals(NEVER)) {
-                    if (restItem.contains(PIPE)) {
-                        restItem = restItem.substring(1, restItem.length() - 1);
-                    }
-                    restMembers.add(restItem);
+//                if (!restItem.equals(NEVER)) {
+                if (restItem.contains(PIPE)) {
+                    restItem = restItem.substring(1, restItem.length() - 1);
                 }
+                restMembers.add(restItem);
+//                }
                 String restItemType = OPEN_BRACKET + String.join(PIPE, restMembers) + CLOSE_BRACKET;
                 arrayItems.add(restItemType + REST);
             }
@@ -1138,6 +1135,7 @@ public class Generator {
         }
 
         if (uneval && unevaluatedProperties != null) {
+            this.addJsonDataImport();
             String unevalPropName = resolveNameConflicts(type + UNEVALUATED_PROPS, this);
             String unevalAnnotation = String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE, UNEVALUATED_PROPS,
                     VALUE + COLON + resolveAnnotationValueTypeName(unevalPropName, restType, this));
