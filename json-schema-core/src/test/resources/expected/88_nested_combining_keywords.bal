@@ -14,12 +14,12 @@ public type SchemaNotAllOf1AllOf1Object record {|
     json...;
 |};
 
-public type SchemaNotAllOf1AllOf1 boolean|string|[json...]|SchemaNotAllOf1AllOf1Object|()|int|float|decimal;
-
 public type SchemaNotAllOf1AllOf2Object record {|
     "error" status?;
     json...;
 |};
+
+public type SchemaNotAllOf1AllOf1 boolean|string|[json...]|SchemaNotAllOf1AllOf1Object|()|int|float|decimal;
 
 public type SchemaNotAllOf1AllOf2 boolean|string|[json...]|SchemaNotAllOf1AllOf2Object|()|int|float|decimal;
 
