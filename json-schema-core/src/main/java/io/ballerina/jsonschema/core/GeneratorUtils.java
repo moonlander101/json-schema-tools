@@ -458,7 +458,9 @@ public class GeneratorUtils {
 
     static String toBallerinaFieldIdentifier(String raw) {
         if (raw.isEmpty()) {
-            throw new IllegalArgumentException("JSON property names must be non-empty to generate Ballerina record fields");
+            throw new IllegalArgumentException(
+                    "JSON property names must be non-empty to generate Ballerina record fields"
+            );
         }
         if (isValidUnquotedIdentifier(raw)) {
             return raw;

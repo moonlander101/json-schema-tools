@@ -253,7 +253,8 @@ public class Generator {
             for (int index = 1; index < schemaCopyList.size(); index++) {
                 Object originalSchemaObject = schemaObjectList.get(index);
                 Object copiedSchemaObject = schemaCopyList.get(index);
-                if (originalSchemaObject instanceof Schema originalSchema && copiedSchemaObject instanceof Schema copiedSchema) {
+                if (originalSchemaObject instanceof Schema originalSchema
+                        && copiedSchemaObject instanceof Schema copiedSchema) {
                     String schemaName = this.resolveSchemaName(originalSchemaObject, schemaToFileMap);
                     this.schemaToCanonicalTypeMap.put(originalSchema, schemaName);
                     this.schemaToCanonicalTypeMap.put(copiedSchema, schemaName);
@@ -932,7 +933,8 @@ public class Generator {
             restItem = this.convert(items, type + NAME_REST_ITEM);
         }
 
-        boolean requiresStableArrayAliases = !convertedPrefixItems.isEmpty() && startPosition < convertedPrefixItems.size();
+        boolean requiresStableArrayAliases = !convertedPrefixItems.isEmpty()
+                && startPosition < convertedPrefixItems.size();
         if (requiresStableArrayAliases) {
             List<GeneratorUtils.ContextualTypeMember> arrayMembers = new ArrayList<>();
             for (int i = (int) startPosition; i < convertedPrefixItems.size(); i++) {
