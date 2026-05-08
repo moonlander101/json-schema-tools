@@ -1,14 +1,9 @@
 import ballerina/data.jsondata;
 
+@jsondata:ObjectConstraints {
+    dependentSchemas: [{property: "foo\tbar", schema: Foo_barDependentSchema}, {property: "foo'bar", schema: Foo_barDependentSchema1}]
+}
 public type SchemaObject record {|
-    @jsondata:DependentSchema {
-        value: Foo_barDependentSchema1
-    }
-    json 'foo\u{27}bar?;
-    @jsondata:DependentSchema {
-        value: Foo_barDependentSchema
-    }
-    json 'foo\u{9}bar?;
     json...;
 |};
 

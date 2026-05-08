@@ -71,6 +71,7 @@ import static io.ballerina.jsonschema.core.GeneratorUtils.CONTENT_MEDIA_TYPE;
 import static io.ballerina.jsonschema.core.GeneratorUtils.CONTENT_SCHEMA;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DECIMAL;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DEPENDENT_SCHEMA;
+import static io.ballerina.jsonschema.core.GeneratorUtils.DEPENDENT_SCHEMAS;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DEPRECATED;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DOUBLE_QUOTATION;
 import static io.ballerina.jsonschema.core.GeneratorUtils.DUMMY_SCHEME;
@@ -1212,7 +1213,36 @@ public class Generator {
             }
         }
 
-        if (maxProperties != null || minProperties != null || propertyNames != null) {
+        // Add dependent schema entries: field-level if trigger key exists, object-level otherwise.
+        List<String> objectDependentSchemas = new ArrayList<>();
+        if (!dependentSchemas.isEmpty()) {
+            dependentSchemas.forEach((key, value) -> {
+                try {
+                    String schemaName =
+                            resolveNameConflicts(convertToPascalCase(key) +
+                                    DEPENDENT_SCHEMA, this);
+                    String dependentSchemaType = this.convert(value, schemaName);
+
+                    if (!dependentSchemaType.equals(schemaName) && !isPrimitiveBalType(dependentSchemaType)) {
+                        dependentSchemaType =
+                                resolveAnnotationValueTypeName(schemaName, dependentSchemaType, this);
+                    }
+
+                    if (recordFields.containsKey(key)) {
+                        recordFields.get(key).setDependentSchemaType(dependentSchemaType);
+                    } else {
+                        String propertyLiteral = toBallerinaStringLiteral(key);
+                        objectDependentSchemas.add(
+                                "{ property: " + propertyLiteral + ", schema: " + dependentSchemaType + " }");
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
+        if (maxProperties != null || minProperties != null || propertyNames != null
+                || !objectDependentSchemas.isEmpty()) {
             this.addJsonDataImport();
             List<String> objectProperties = new ArrayList<>();
 
@@ -1228,6 +1258,12 @@ public class Generator {
                 } else {
                     objectProperties.add(PROPERTY_NAMES + ": " + STRING);
                 }
+            }
+
+            if (!objectDependentSchemas.isEmpty()) {
+                String depSchemasArray = OPEN_SQUARE_BRACKET +
+                        String.join(COMMA + WHITE_SPACE, objectDependentSchemas) + CLOSE_SQUARE_BRACKET;
+                objectProperties.add(DEPENDENT_SCHEMAS + COLON + WHITE_SPACE + depSchemasArray);
             }
 
             String minMaxAnnotation = String.format(ANNOTATION_FORMAT, ANNOTATION_MODULE,
@@ -1256,34 +1292,6 @@ public class Generator {
                     recordFields.put(key, new GeneratorUtils.RecordField(finalRestType, true));
                 } else {
                     recordFields.get(key).setRequired();
-                }
-            });
-        }
-
-        // Add dependent schema fields that are not specified in the properties' keyword.
-        if (!dependentSchemas.isEmpty()) {
-            String finalRestType = restType;
-            dependentSchemas.forEach((key, value) -> {
-                if (!recordFields.containsKey(key)) {
-                    if (finalRestType.equals(NEVER)) {
-                        return;
-                    }
-                    recordFields.put(key, new GeneratorUtils.RecordField(finalRestType, false));
-                }
-                try {
-                    String schemaName =
-                            resolveNameConflicts(convertToPascalCase(key) +
-                                    DEPENDENT_SCHEMA, this);
-                    String dependentSchemaType = this.convert(value, schemaName);
-
-                    if (!dependentSchemaType.equals(schemaName) && !isPrimitiveBalType(dependentSchemaType)) {
-                        dependentSchemaType =
-                                resolveAnnotationValueTypeName(schemaName, dependentSchemaType, this);
-                    }
-
-                    recordFields.get(key).setDependentSchemaType(dependentSchemaType);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
             });
         }

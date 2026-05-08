@@ -149,6 +149,7 @@ public class GeneratorUtils {
     public static final String REST_TYPE = "RestType";
     public static final String ADDITIONAL_PROPS = "AdditionalProperties";
     public static final String DEPENDENT_SCHEMA = "DependentSchema";
+    public static final String DEPENDENT_SCHEMAS = "dependentSchemas";
     public static final String DEPENDENT_REQUIRED = "DependentRequired";
     public static final String UNEVALUATED_PROPS = "UnevaluatedProperties";
     public static final String UNEVALUATED_ITEMS_ANNOT = "UnevaluatedItems";
